@@ -133,6 +133,11 @@ echo "🏢 Odoo Port           : $ODOO_PORT"
 echo "🗄️ PostgreSQL Port     : $POSTGRES_PORT"
 echo "📦 Version Odoo        : $ODOO_VERSION"
 echo ""
+echo "⚠️  INSTALLATION AUTOMATIQUE EN COURS..."
+echo "    Le script va maintenant s'exécuter sans interruption."
+echo "    Aucune intervention manuelle ne sera requise."
+echo "    Durée estimée : 15-30 minutes selon la connexion Internet."
+echo ""
 read -p "Continuer avec cette configuration ? (y/N): " -n 1 -r
 echo ""
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -140,27 +145,54 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     exit 1
 fi
 
+echo ""
+log "🚀 Démarrage de l'installation automatique..."
+log "⏳ Veuillez patienter, aucune intervention requise..."
+
+#################################################################################
+# CONFIGURATION NON-INTERACTIVE
+#################################################################################
+
+# Configuration pour éviter toute interaction utilisateur
+export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=a
+export NEEDRESTART_SUSPEND=1
+
+# Configuration debconf pour mode automatique
+echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+echo 'debconf debconf/priority select critical' | debconf-set-selections
+
+# Configuration des redémarrages automatiques de services
+mkdir -p /etc/needrestart/conf.d
+cat > /etc/needrestart/conf.d/50-local.conf << 'EOF'
+# Automatically restart services without asking
+$nrconf{restart} = 'a';
+$nrconf{kernelhints} = 0;
+$nrconf{ucodehints} = 0;
+EOF
+
 #################################################################################
 # ÉTAPE 1: MISE À JOUR SYSTÈME ET INSTALLATION OUTILS
 #################################################################################
 
 log "Démarrage de l'installation automatisée..."
-log "ÉTAPE 1/5: Mise à jour système et installation des outils"
+log "ÉTAPE 1/5: Mise à jour système et installation des outils (mode non-interactif)"
 
-# Mise à jour système
+# Mise à jour système en mode automatique
 log "Mise à jour du système..."
-apt update && apt full-upgrade -y || error "Échec mise à jour système"
+apt update && DEBIAN_FRONTEND=noninteractive apt full-upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" || error "Échec mise à jour système"
 
 # Installation groupée des outils système
 log "Installation des outils système essentiels..."
-apt install -y \
+DEBIAN_FRONTEND=noninteractive apt install -y \
     ufw fail2ban unattended-upgrades nano rsyslog cron \
     iputils-ping dnsutils net-tools curl wget git \
     python3-pip python3-dev python3-venv \
     libxml2-dev libxslt1-dev libevent-dev libsasl2-dev libldap2-dev \
     pkg-config libtiff5-dev libjpeg8-dev libopenjp2-7-dev zlib1g-dev \
     libfreetype6-dev liblcms2-dev libwebp-dev libharfbuzz-dev \
-    libfribidi-dev libxcb1-dev || error "Échec installation outils"
+    libfribidi-dev libxcb1-dev \
+    -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" || error "Échec installation outils"
 
 log "✅ Outils système installés avec succès"
 
@@ -232,7 +264,7 @@ log "ÉTAPE 3/5: Installation et configuration PostgreSQL"
 
 # Installation PostgreSQL
 log "Installation de PostgreSQL..."
-apt install -y postgresql postgresql-contrib || error "Échec installation PostgreSQL"
+DEBIAN_FRONTEND=noninteractive apt install -y postgresql postgresql-contrib -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" || error "Échec installation PostgreSQL"
 systemctl enable postgresql
 
 # Configuration des utilisateurs
@@ -261,7 +293,7 @@ log "ÉTAPE 4/5: Installation Nginx, Odoo 17 et Webmin"
 
 # Installation Nginx
 log "Installation de Nginx..."
-apt install -y nginx certbot python3-certbot-nginx || error "Échec installation Nginx"
+DEBIAN_FRONTEND=noninteractive apt install -y nginx certbot python3-certbot-nginx -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" || error "Échec installation Nginx"
 systemctl enable nginx
 
 # Configuration reverse proxy Nginx
@@ -301,16 +333,11 @@ nginx -t && systemctl restart nginx || error "Échec configuration Nginx"
 log "Installation d'Odoo $ODOO_VERSION..."
 wget -O - https://nightly.odoo.com/odoo.key | gpg --dearmor -o /usr/share/keyrings/odoo-archive-keyring.gpg
 echo "deb [signed-by=/usr/share/keyrings/odoo-archive-keyring.gpg] https://nightly.odoo.com/$ODOO_VERSION/nightly/deb/ ./" | tee /etc/apt/sources.list.d/odoo.list
-apt-get update && apt-get install -y odoo || error "Échec installation Odoo $ODOO_VERSION"
+DEBIAN_FRONTEND=noninteractive apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y odoo -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" || error "Échec installation Odoo $ODOO_VERSION"
 
 # Création structure sécurisée Odoo
 log "Création de la structure sécurisée Odoo..."
-mkdir -p /opt/odoo-secure/{addons-custom,addons-external,config,logs}
-chown -R $ODOO_USER:$ODOO_USER /opt/odoo-secure/
-chmod 750 /opt/odoo-secure/addons-custom/
-chmod 750 /opt/odoo-secure/addons-external/
-chmod 750 /opt/odoo-secure/config/
-chmod 755 /opt/odoo-secure/logs/
+mkdir -p /opt/odoo-secure/{addons-custom,addons-external,config,logs,filestore}
 
 # Configuration Odoo sécurisée
 log "Configuration d'Odoo avec ports personnalisés et addons sécurisés..."
@@ -351,14 +378,47 @@ limit_time_cpu = 600
 limit_time_real = 1200
 EOF
 
-# Lien vers configuration sécurisée
-ln -sf /opt/odoo-secure/config/odoo.conf /etc/odoo/odoo.conf
+# CORRECTION CRITIQUE : Permissions correctes POUR L'UTILISATEUR ODOO
+log "Application des permissions sécurisées..."
+chown -R odoo:odoo /opt/odoo-secure/
+chmod 750 /opt/odoo-secure/addons-custom/
+chmod 750 /opt/odoo-secure/addons-external/
+chmod 750 /opt/odoo-secure/config/
+chmod 750 /opt/odoo-secure/filestore/
+chmod 755 /opt/odoo-secure/logs/
 chmod 640 /opt/odoo-secure/config/odoo.conf
 
-# Création dossier filestore sécurisé
-mkdir -p /opt/odoo-secure/filestore
-chown $ODOO_USER:$ODOO_USER /opt/odoo-secure/filestore
-chmod 750 /opt/odoo-secure/filestore
+# Lien vers configuration sécurisée ET permissions du lien
+ln -sf /opt/odoo-secure/config/odoo.conf /etc/odoo/odoo.conf
+chown odoo:odoo /etc/odoo/odoo.conf
+
+# Test configuration Odoo avant démarrage
+log "Test de la configuration Odoo..."
+if sudo -u odoo odoo --config=/etc/odoo/odoo.conf --test-enable --stop-after-init --logfile=/tmp/odoo-test.log; then
+    log "✅ Configuration Odoo valide"
+else
+    warning "❌ Problème configuration Odoo, vérification en cours..."
+    cat /tmp/odoo-test.log
+fi
+
+# Redémarrage Odoo avec vérification robuste
+log "Démarrage du service Odoo..."
+systemctl stop odoo
+sleep 3
+systemctl start odoo
+sleep 10
+
+# Vérification finale avec plusieurs tentatives
+for i in {1..3}; do
+    if systemctl is-active --quiet odoo; then
+        log "✅ Odoo démarré avec succès"
+        break
+    else
+        warning "Tentative $i/3 : Odoo non démarré, nouvelle tentative..."
+        systemctl restart odoo
+        sleep 10
+    fi
+done
 
 systemctl restart odoo || error "Échec redémarrage Odoo"
 
@@ -366,7 +426,7 @@ systemctl restart odoo || error "Échec redémarrage Odoo"
 log "Installation de Webmin..."
 wget -qO - http://www.webmin.com/jcameron-key.asc | apt-key add -
 echo "deb http://download.webmin.com/download/repository sarge contrib" | tee -a /etc/apt/sources.list
-apt update && apt install -y webmin || error "Échec installation Webmin"
+DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt install -y webmin -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" || error "Échec installation Webmin"
 
 # Configuration port Webmin
 log "Configuration du port Webmin: $WEBMIN_PORT"
@@ -485,10 +545,11 @@ log "Vérifications finales du système..."
 
 echo ""
 echo "╔══════════════════════════════════════════════════════════════════╗"
-echo "║                    INSTALLATION TERMINÉE !                      ║"
+echo "║               INSTALLATION AUTOMATIQUE TERMINÉE !               ║"
 echo "╚══════════════════════════════════════════════════════════════════╝"
 echo ""
 echo "🎉 Installation automatisée terminée avec succès !"
+echo "✅ Aucune interruption manuelle n'a été requise"
 echo ""
 echo "📋 SERVICES INSTALLÉS ET CONFIGURÉS:"
 echo "   ✅ Ubuntu Server sécurisé"
