@@ -191,8 +191,44 @@ DEBIAN_FRONTEND=noninteractive apt install -y \
     libxml2-dev libxslt1-dev libevent-dev libsasl2-dev libldap2-dev \
     pkg-config libtiff5-dev libjpeg8-dev libopenjp2-7-dev zlib1g-dev \
     libfreetype6-dev liblcms2-dev libwebp-dev libharfbuzz-dev \
-    libfribidi-dev libxcb1-dev \
+    libfribidi-dev libxcb1-dev fontconfig libxrender1 xfonts-75dpi xfonts-base \
     -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" || error "Échec installation outils"
+
+# Installation wkhtmltopdf (version officielle pour meilleure compatibilité)
+log "Installation de wkhtmltopdf (génération PDF Odoo)..."
+WKHTMLTOPDF_VERSION="0.12.6.1-2"
+WKHTMLTOPDF_URL="https://github.com/wkhtmltopdf/packaging/releases/download/${WKHTMLTOPDF_VERSION}/wkhtmltox_${WKHTMLTOPDF_VERSION}.jammy_amd64.deb"
+cd /tmp
+wget -q $WKHTMLTOPDF_URL -O wkhtmltox.deb || warning "Échec téléchargement wkhtmltopdf, installation depuis apt"
+if [ -f "wkhtmltox.deb" ]; then
+    DEBIAN_FRONTEND=noninteractive dpkg -i wkhtmltox.deb || true
+    DEBIAN_FRONTEND=noninteractive apt-get install -f -y
+    log "✅ wkhtmltopdf installé depuis les sources officielles"
+else
+    DEBIAN_FRONTEND=noninteractive apt install -y wkhtmltopdf
+    log "✅ wkhtmltopdf installé depuis apt"
+fi
+
+# Installation des dépendances Python pour modules Odoo avancés
+log "Installation des dépendances Python pour modules Odoo..."
+pip3 install --upgrade pip
+pip3 install \
+    dropbox \
+    pyncclient \
+    nextcloud-api-wrapper \
+    boto3 \
+    paramiko \
+    requests \
+    cryptography \
+    pillow \
+    lxml \
+    reportlab \
+    qrcode[pil] \
+    xlsxwriter \
+    xlrd \
+    openpyxl \
+    python-dateutil \
+    pytz || warning "Certaines dépendances Python ont échoué (continuer...)"
 
 log "✅ Outils système installés avec succès"
 
