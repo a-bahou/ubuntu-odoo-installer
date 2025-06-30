@@ -438,12 +438,12 @@ systemctl restart webmin || error "Échec redémarrage Webmin"
 log "✅ Nginx, Odoo et Webmin installés et configurés"
 
 #################################################################################
-# ÉTAPE 5: SÉCURISATION FINALE
+# ÉTAPE 5: SÉCURISATION FINALE + DÉSACTIVATION AUTOMATIQUE MOTS DE PASSE
 #################################################################################
 
 log "ÉTAPE 5/5: Sécurisation finale du système"
 
-# Configuration SSH sécurisé
+# Configuration SSH sécurisé (garde les mots de passe pour l'instant)
 log "Configuration SSH sécurisé sur le port $SSH_PORT..."
 cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup
 
@@ -535,6 +535,32 @@ chmod +x /opt/backup/backup-odoo.sh
 # Cron automatique
 (crontab -l 2>/dev/null; echo "0 2 * * * /opt/backup/backup-odoo.sh >> /var/log/backup.log 2>&1") | crontab -
 
+# NOUVELLE FONCTIONNALITÉ : Vérification et désactivation automatique des mots de passe SSH
+log "Vérification des clés SSH et sécurisation automatique..."
+
+# Vérifier si des clés SSH sont configurées pour l'utilisateur admin
+if [ -f "/home/$ADMIN_USER/.ssh/authorized_keys" ] && [ -s "/home/$ADMIN_USER/.ssh/authorized_keys" ]; then
+    log "🔑 Clés SSH détectées pour $ADMIN_USER"
+    
+    # Test rapide de connectivité avec clés
+    if sudo -u $ADMIN_USER ssh -o StrictHostKeyChecking=no -o PasswordAuthentication=no -p $SSH_PORT $ADMIN_USER@localhost echo "test" 2>/dev/null; then
+        log "✅ Clés SSH fonctionnelles - Désactivation automatique des mots de passe..."
+        
+        # Désactivation des mots de passe SSH
+        sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+        systemctl restart sshd
+        
+        log "🔒 Mots de passe SSH désactivés automatiquement - Sécurité maximale activée"
+        SSH_PASSWORD_DISABLED=true
+    else
+        log "⚠️ Clés SSH présentes mais non fonctionnelles - Conservation des mots de passe"
+        SSH_PASSWORD_DISABLED=false
+    fi
+else
+    log "⚠️ Aucune clé SSH détectée - Conservation des mots de passe pour configuration manuelle"
+    SSH_PASSWORD_DISABLED=false
+fi
+
 log "✅ Sécurisation finale terminée"
 
 #################################################################################
@@ -569,23 +595,36 @@ echo "   🔑 SSH           : $CURRENT_IP:$SSH_PORT"
 echo ""
 echo "⚠️  CONFIGURATION MANUELLE RESTANTE:"
 echo ""
-echo "🔑 CONFIGURATION CLÉS SSH PUTTY (ÉTAPES DÉTAILLÉES):"
-echo "   1. Sur Windows : Télécharger PuTTY + PuTTYgen"
-echo "   2. PuTTYgen : Type RSA, 4096 bits, Generate"
-echo "   3. Sauver clé privée : systemerp-prod.ppk"
-echo "   4. Copier clé publique (zone de texte)"
-echo "   5. Sur serveur : mkdir -p ~/.ssh"
-echo "   6. Sur serveur : nano ~/.ssh/authorized_keys"
-echo "   7. Coller la clé publique, sauvegarder"
-echo "   8. Sur serveur : chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys"
-echo "   9. PuTTY Config :"
-echo "      - Host: $CURRENT_IP, Port: $SSH_PORT"
-echo "      - SSH→Auth→Credentials: Charger systemerp-prod.ppk"
-echo "      - Connection→Data: Auto-login: $ADMIN_USER"
-echo "      - Session: Sauver 'SystemERP-Prod'"
-echo "   10. Test connexion avec clé"
-echo "   11. Désactiver mots de passe : PasswordAuthentication no"
-echo ""
+if [ "$SSH_PASSWORD_DISABLED" = true ]; then
+    echo "🔒 SÉCURITÉ SSH : MAXIMALE (Mots de passe automatiquement désactivés)"
+    echo "   ✅ Clés SSH détectées et fonctionnelles"
+    echo "   ✅ PasswordAuthentication automatiquement désactivé"
+    echo "   ✅ Accès SSH uniquement par clés PuTTY"
+    echo ""
+    echo "🔑 CONNEXION SSH :"
+    echo "   - Utilisez PuTTY avec votre clé privée .ppk"
+    echo "   - Host: $CURRENT_IP, Port: $SSH_PORT"
+    echo "   - Les mots de passe SSH sont désormais INTERDITS"
+    echo ""
+else
+    echo "🔑 CONFIGURATION CLÉS SSH PUTTY (À FAIRE MANUELLEMENT):"
+    echo "   1. Sur Windows : Télécharger PuTTY + PuTTYgen"
+    echo "   2. PuTTYgen : Type RSA, 4096 bits, Generate"
+    echo "   3. Sauver clé privée : systemerp-prod.ppk"
+    echo "   4. Copier clé publique (zone de texte)"
+    echo "   5. Sur serveur : mkdir -p ~/.ssh"
+    echo "   6. Sur serveur : nano ~/.ssh/authorized_keys"
+    echo "   7. Coller la clé publique, sauvegarder"
+    echo "   8. Sur serveur : chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys"
+    echo "   9. PuTTY Config :"
+    echo "      - Host: $CURRENT_IP, Port: $SSH_PORT"
+    echo "      - SSH→Auth→Credentials: Charger systemerp-prod.ppk"
+    echo "      - Connection→Data: Auto-login: $ADMIN_USER"
+    echo "      - Session: Sauver 'SystemERP-Prod'"
+    echo "   10. Test connexion avec clé"
+    echo "   11. PUIS relancer ce script - il désactivera automatiquement les mots de passe"
+    echo ""
+fi
 echo "📁 DOSSIERS SÉCURISÉS ODOO CRÉÉS:"
 echo "   🔒 Addons personnalisés : /opt/odoo-secure/addons-custom/"
 echo "   🔒 Addons externes      : /opt/odoo-secure/addons-external/"  
@@ -596,8 +635,13 @@ echo ""
 echo "📝 ÉTAPES SUIVANTES:"
 echo "   1. Testez l'accès Odoo: http://$CURRENT_IP"
 echo "   2. Testez l'accès Webmin: https://$CURRENT_IP:$WEBMIN_PORT"
-echo "   3. Configurez vos clés SSH PuTTY (instructions ci-dessus)"
-echo "   4. Désactivez PasswordAuthentication dans /etc/ssh/sshd_config"
+if [ "$SSH_PASSWORD_DISABLED" = true ]; then
+    echo "   3. ✅ SSH sécurisé automatiquement (clés uniquement)"
+    echo "   4. Placez vos addons dans /opt/odoo-secure/addons-custom/"
+else
+    echo "   3. Configurez vos clés SSH PuTTY (instructions ci-dessus)"
+    echo "   4. Relancez ce script pour désactivation automatique des mots de passe"
+fi
 echo ""
 echo "📊 ÉTAT DES SERVICES:"
 
