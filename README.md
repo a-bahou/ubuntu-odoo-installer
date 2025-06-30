@@ -2,6 +2,9 @@
 
 Script d'installation automatique pour Ubuntu Server 22.04 avec Odoo 17, PostgreSQL, Nginx et Webmin.
 
+# Instal nano et ajouter Key via Putty
+
+
 ## ⚡ Installation Rapide
 
 ```bash
