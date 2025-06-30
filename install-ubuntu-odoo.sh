@@ -32,40 +32,90 @@ info() {
 }
 
 #################################################################################
-# CONFIGURATION PERSONNALISÉE - MODIFIEZ VOS PORTS ICI
+# CONFIGURATION INTERACTIVE - VALEURS PAR DÉFAUT
 #################################################################################
 
-# Paramètres réseau
+# Paramètres réseau (fixes)
 DOMAIN_LOCAL="systemerp.local"
 SERVER_NAME="systemerp-prod"
 ADMIN_USER="sysadmin"
 ODOO_USER="sys-erp"
 
-# Ports personnalisés (MODIFIEZ SELON VOS BESOINS)
-SSH_PORT="8173"
-WEBMIN_PORT="12579"
-ODOO_PORT="9017"
-ODOO_LONGPOLL_PORT="8072"
-POSTGRES_PORT="6792"
+# Valeurs par défaut
+DEFAULT_SSH_PORT="8173"
+DEFAULT_WEBMIN_PORT="12579"
+DEFAULT_ODOO_PORT="9017"
+DEFAULT_ODOO_LONGPOLL_PORT="8072"
+DEFAULT_POSTGRES_PORT="6792"
+DEFAULT_ODOO_VERSION="17.0"
+DEFAULT_PASSWORD="B@hou1983"
 
-# Interface réseau (auto-détectée ou forcée)
+# Interface réseau (auto-détectée)
 NETWORK_INTERFACE=$(ip route | grep default | awk '{print $5}' | head -n1)
-CURRENT_IP=$(ip addr show $NETWORK_INTERFACE | grep "inet " | awk '{print $2}' | cut -d/ -f1)
-GATEWAY=$(ip route | grep default | awk '{print $3}')
+DETECTED_IP=$(ip addr show $NETWORK_INTERFACE | grep "inet " | awk '{print $2}' | cut -d/ -f1)
+DETECTED_GATEWAY=$(ip route | grep default | awk '{print $3}')
 
-# Mots de passe (SAISISSEZ VOS MOTS DE PASSE FORTS)
 echo ""
 echo "╔══════════════════════════════════════════════════════════════════╗"
-echo "║              CONFIGURATION DES MOTS DE PASSE                    ║"
+echo "║             CONFIGURATION INTERACTIVE DU SERVEUR                ║"
 echo "╚══════════════════════════════════════════════════════════════════╝"
 echo ""
+echo "ℹ️  Appuyez sur ENTRÉE pour utiliser la valeur par défaut"
+echo ""
 
-read -s -p "Mot de passe PostgreSQL (postgres): " POSTGRES_ADMIN_PASS
+# Configuration des ports
+echo "🔧 CONFIGURATION DES PORTS :"
+read -p "Port SSH [$DEFAULT_SSH_PORT]: " SSH_PORT
+SSH_PORT=${SSH_PORT:-$DEFAULT_SSH_PORT}
+
+read -p "Port Webmin [$DEFAULT_WEBMIN_PORT]: " WEBMIN_PORT
+WEBMIN_PORT=${WEBMIN_PORT:-$DEFAULT_WEBMIN_PORT}
+
+read -p "Port Odoo [$DEFAULT_ODOO_PORT]: " ODOO_PORT
+ODOO_PORT=${ODOO_PORT:-$DEFAULT_ODOO_PORT}
+
+read -p "Port PostgreSQL [$DEFAULT_POSTGRES_PORT]: " POSTGRES_PORT
+POSTGRES_PORT=${POSTGRES_PORT:-$DEFAULT_POSTGRES_PORT}
+
+# Configuration version Odoo
 echo ""
-read -s -p "Mot de passe PostgreSQL (sys-erp): " POSTGRES_USER_PASS
+echo "📦 VERSION ODOO :"
+echo "   Versions disponibles : 16.0, 17.0, 18.0"
+read -p "Version Odoo [$DEFAULT_ODOO_VERSION]: " ODOO_VERSION
+ODOO_VERSION=${ODOO_VERSION:-$DEFAULT_ODOO_VERSION}
+
+# Configuration réseau
 echo ""
-read -s -p "Mot de passe Master Odoo: " ODOO_MASTER_PASS
+echo "🌐 CONFIGURATION RÉSEAU :"
+echo "   Interface détectée : $NETWORK_INTERFACE"
+echo "   IP détectée        : $DETECTED_IP"
+echo "   Passerelle détectée: $DETECTED_GATEWAY"
+read -p "Adresse IP serveur [$DETECTED_IP]: " CURRENT_IP
+CURRENT_IP=${CURRENT_IP:-$DETECTED_IP}
+
+read -p "Passerelle [$DETECTED_GATEWAY]: " GATEWAY
+GATEWAY=${GATEWAY:-$DETECTED_GATEWAY}
+
+# Configuration des mots de passe
 echo ""
+echo "🔐 CONFIGURATION DES MOTS DE PASSE :"
+echo "   Mot de passe par défaut : $DEFAULT_PASSWORD"
+echo ""
+
+read -s -p "Mot de passe PostgreSQL (postgres) [$DEFAULT_PASSWORD]: " POSTGRES_ADMIN_PASS
+echo ""
+POSTGRES_ADMIN_PASS=${POSTGRES_ADMIN_PASS:-$DEFAULT_PASSWORD}
+
+read -s -p "Mot de passe PostgreSQL (sys-erp) [$DEFAULT_PASSWORD]: " POSTGRES_USER_PASS
+echo ""
+POSTGRES_USER_PASS=${POSTGRES_USER_PASS:-$DEFAULT_PASSWORD}
+
+read -s -p "Mot de passe Master Odoo [$DEFAULT_PASSWORD]: " ODOO_MASTER_PASS
+echo ""
+ODOO_MASTER_PASS=${ODOO_MASTER_PASS:-$DEFAULT_PASSWORD}
+
+# Port longpolling automatique (port Odoo + 1000)
+ODOO_LONGPOLL_PORT=$((ODOO_PORT + 1000))
 
 # Confirmation des paramètres
 echo ""
@@ -74,13 +124,14 @@ echo "║                    CONFIGURATION DÉTECTÉE                       ║"
 echo "╚══════════════════════════════════════════════════════════════════╝"
 echo ""
 echo "🌐 Interface réseau    : $NETWORK_INTERFACE"
-echo "📍 IP actuelle         : $CURRENT_IP"
+echo "📍 IP configurée       : $CURRENT_IP"
 echo "🚪 Passerelle          : $GATEWAY"
 echo "🏠 Domaine local       : $DOMAIN_LOCAL"
 echo "🔑 SSH Port            : $SSH_PORT"
 echo "⚙️ Webmin Port         : $WEBMIN_PORT" 
 echo "🏢 Odoo Port           : $ODOO_PORT"
 echo "🗄️ PostgreSQL Port     : $POSTGRES_PORT"
+echo "📦 Version Odoo        : $ODOO_VERSION"
 echo ""
 read -p "Continuer avec cette configuration ? (y/N): " -n 1 -r
 echo ""
@@ -246,11 +297,11 @@ rm -f /etc/nginx/sites-enabled/default
 
 nginx -t && systemctl restart nginx || error "Échec configuration Nginx"
 
-# Installation Odoo 17
-log "Installation d'Odoo 17..."
+# Installation Odoo avec version personnalisée
+log "Installation d'Odoo $ODOO_VERSION..."
 wget -O - https://nightly.odoo.com/odoo.key | gpg --dearmor -o /usr/share/keyrings/odoo-archive-keyring.gpg
-echo 'deb [signed-by=/usr/share/keyrings/odoo-archive-keyring.gpg] https://nightly.odoo.com/17.0/nightly/deb/ ./' | tee /etc/apt/sources.list.d/odoo.list
-apt-get update && apt-get install -y odoo || error "Échec installation Odoo"
+echo "deb [signed-by=/usr/share/keyrings/odoo-archive-keyring.gpg] https://nightly.odoo.com/$ODOO_VERSION/nightly/deb/ ./" | tee /etc/apt/sources.list.d/odoo.list
+apt-get update && apt-get install -y odoo || error "Échec installation Odoo $ODOO_VERSION"
 
 # Création structure sécurisée Odoo
 log "Création de la structure sécurisée Odoo..."
@@ -403,11 +454,14 @@ BACKUP_DIR="/opt/backup"
 # Sauvegarde base de données
 PGPASSWORD='$POSTGRES_USER_PASS' pg_dump -h localhost -p $POSTGRES_PORT -U $ODOO_USER postgres > \$BACKUP_DIR/odoo_db_\${DATE}.sql
 
-# Sauvegarde filestore Odoo
-tar -czf \$BACKUP_DIR/odoo_filestore_\${DATE}.tar.gz /var/lib/odoo/filestore/ 2>/dev/null
+# Sauvegarde filestore Odoo sécurisé
+tar -czf \$BACKUP_DIR/odoo_filestore_\${DATE}.tar.gz /opt/odoo-secure/filestore/ 2>/dev/null
 
-# Sauvegarde configurations
-tar -czf \$BACKUP_DIR/configs_\${DATE}.tar.gz /etc/odoo/ /etc/nginx/sites-available/ /etc/ssh/sshd_config /etc/fail2ban/jail.local 2>/dev/null
+# Sauvegarde addons personnalisés
+tar -czf \$BACKUP_DIR/odoo_addons_custom_\${DATE}.tar.gz /opt/odoo-secure/addons-custom/ 2>/dev/null
+
+# Sauvegarde configurations sécurisées
+tar -czf \$BACKUP_DIR/configs_\${DATE}.tar.gz /opt/odoo-secure/config/ /etc/nginx/sites-available/ /etc/ssh/sshd_config /etc/fail2ban/jail.local 2>/dev/null
 
 # Nettoyage (garde 7 jours)
 find \$BACKUP_DIR -name "*.sql" -mtime +7 -delete
@@ -441,7 +495,7 @@ echo "   ✅ Ubuntu Server sécurisé"
 echo "   ✅ Firewall UFW activé avec ports personnalisés"
 echo "   ✅ PostgreSQL sur port $POSTGRES_PORT"
 echo "   ✅ Nginx reverse proxy"
-echo "   ✅ Odoo 17 sur port $ODOO_PORT"
+echo "   ✅ Odoo $ODOO_VERSION sur port $ODOO_PORT"
 echo "   ✅ Webmin sur port $WEBMIN_PORT"
 echo "   ✅ SSH sécurisé sur port $SSH_PORT"
 echo "   ✅ Fail2ban anti-intrusion"
@@ -481,7 +535,7 @@ echo ""
 echo "📝 ÉTAPES SUIVANTES:"
 echo "   1. Testez l'accès Odoo: http://$CURRENT_IP"
 echo "   2. Testez l'accès Webmin: https://$CURRENT_IP:$WEBMIN_PORT"
-echo "   3. Configurez vos clés SSH PuTTY"
+echo "   3. Configurez vos clés SSH PuTTY (instructions ci-dessus)"
 echo "   4. Désactivez PasswordAuthentication dans /etc/ssh/sshd_config"
 echo ""
 echo "📊 ÉTAT DES SERVICES:"
