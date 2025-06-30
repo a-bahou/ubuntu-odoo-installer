@@ -252,9 +252,18 @@ wget -O - https://nightly.odoo.com/odoo.key | gpg --dearmor -o /usr/share/keyrin
 echo 'deb [signed-by=/usr/share/keyrings/odoo-archive-keyring.gpg] https://nightly.odoo.com/17.0/nightly/deb/ ./' | tee /etc/apt/sources.list.d/odoo.list
 apt-get update && apt-get install -y odoo || error "Échec installation Odoo"
 
-# Configuration Odoo
-log "Configuration d'Odoo avec ports personnalisés..."
-cat > /etc/odoo/odoo.conf << EOF
+# Création structure sécurisée Odoo
+log "Création de la structure sécurisée Odoo..."
+mkdir -p /opt/odoo-secure/{addons-custom,addons-external,config,logs}
+chown -R $ODOO_USER:$ODOO_USER /opt/odoo-secure/
+chmod 750 /opt/odoo-secure/addons-custom/
+chmod 750 /opt/odoo-secure/addons-external/
+chmod 750 /opt/odoo-secure/config/
+chmod 755 /opt/odoo-secure/logs/
+
+# Configuration Odoo sécurisée
+log "Configuration d'Odoo avec ports personnalisés et addons sécurisés..."
+cat > /opt/odoo-secure/config/odoo.conf << EOF
 [options]
 # Ports personnalisés
 xmlrpc_port = $ODOO_PORT
@@ -269,15 +278,36 @@ db_password = $POSTGRES_USER_PASS
 # Mot de passe master Odoo
 admin_passwd = $ODOO_MASTER_PASS
 
-# Sécurité
+# Sécurité renforcée
 list_db = False
 db_filter = ^.*$
+proxy_mode = True
 
-# Logs et données
-logfile = /var/log/odoo/odoo.log
-data_dir = /var/lib/odoo
-addons_path = /usr/lib/python3/dist-packages/odoo/addons
+# Addons sécurisés (dossiers personnalisés protégés)
+addons_path = /usr/lib/python3/dist-packages/odoo/addons,/opt/odoo-secure/addons-external,/opt/odoo-secure/addons-custom
+
+# Logs et données sécurisés
+logfile = /opt/odoo-secure/logs/odoo.log
+data_dir = /opt/odoo-secure/filestore
+
+# Sécurité supplémentaire
+without_demo = True
+max_cron_threads = 1
+limit_memory_hard = 2684354560
+limit_memory_soft = 2147483648
+limit_request = 8192
+limit_time_cpu = 600
+limit_time_real = 1200
 EOF
+
+# Lien vers configuration sécurisée
+ln -sf /opt/odoo-secure/config/odoo.conf /etc/odoo/odoo.conf
+chmod 640 /opt/odoo-secure/config/odoo.conf
+
+# Création dossier filestore sécurisé
+mkdir -p /opt/odoo-secure/filestore
+chown $ODOO_USER:$ODOO_USER /opt/odoo-secure/filestore
+chmod 750 /opt/odoo-secure/filestore
 
 systemctl restart odoo || error "Échec redémarrage Odoo"
 
@@ -423,8 +453,30 @@ echo "   ⚙️ Webmin Admin  : https://$CURRENT_IP:$WEBMIN_PORT"
 echo "   🔑 SSH           : $CURRENT_IP:$SSH_PORT"
 echo ""
 echo "⚠️  CONFIGURATION MANUELLE RESTANTE:"
-echo "   🔑 Configuration clés SSH PuTTY (voir documentation)"
-echo "   🔒 Désactivation PasswordAuthentication après test clés"
+echo ""
+echo "🔑 CONFIGURATION CLÉS SSH PUTTY (ÉTAPES DÉTAILLÉES):"
+echo "   1. Sur Windows : Télécharger PuTTY + PuTTYgen"
+echo "   2. PuTTYgen : Type RSA, 4096 bits, Generate"
+echo "   3. Sauver clé privée : systemerp-prod.ppk"
+echo "   4. Copier clé publique (zone de texte)"
+echo "   5. Sur serveur : mkdir -p ~/.ssh"
+echo "   6. Sur serveur : nano ~/.ssh/authorized_keys"
+echo "   7. Coller la clé publique, sauvegarder"
+echo "   8. Sur serveur : chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys"
+echo "   9. PuTTY Config :"
+echo "      - Host: $CURRENT_IP, Port: $SSH_PORT"
+echo "      - SSH→Auth→Credentials: Charger systemerp-prod.ppk"
+echo "      - Connection→Data: Auto-login: $ADMIN_USER"
+echo "      - Session: Sauver 'SystemERP-Prod'"
+echo "   10. Test connexion avec clé"
+echo "   11. Désactiver mots de passe : PasswordAuthentication no"
+echo ""
+echo "📁 DOSSIERS SÉCURISÉS ODOO CRÉÉS:"
+echo "   🔒 Addons personnalisés : /opt/odoo-secure/addons-custom/"
+echo "   🔒 Addons externes      : /opt/odoo-secure/addons-external/"  
+echo "   🔒 Configuration        : /opt/odoo-secure/config/"
+echo "   🔒 Logs sécurisés       : /opt/odoo-secure/logs/"
+echo "   🔒 Filestore sécurisé   : /opt/odoo-secure/filestore/"
 echo ""
 echo "📝 ÉTAPES SUIVANTES:"
 echo "   1. Testez l'accès Odoo: http://$CURRENT_IP"
