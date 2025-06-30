@@ -84,22 +84,6 @@ echo "   Versions disponibles : 16.0, 17.0, 18.0"
 read -p "Version Odoo [$DEFAULT_ODOO_VERSION]: " ODOO_VERSION
 ODOO_VERSION=${ODOO_VERSION:-$DEFAULT_ODOO_VERSION}
 
-# Configuration base de données
-echo ""
-echo "🗄️ BASE DE DONNÉES ODOO :"
-echo "   Option 1 : Base vide (installation standard)"  
-echo "   Option 2 : Restaurer base_system.zip préconfigurée"
-read -p "Restaurer base préconfigurée ? (y/N): " RESTORE_BACKUP
-
-if [[ $RESTORE_BACKUP =~ ^[Yy]$ ]]; then
-    read -p "Nom de la base de données [production]: " DB_NAME
-    DB_NAME=${DB_NAME:-"production"}
-    BACKUP_URL="https://github.com/a-bahou/ubuntu-odoo-installer/raw/main/base_system.zip"
-    echo "   ✅ Base préconfigurée sera restaurée : $DB_NAME"
-else
-    echo "   ✅ Installation avec base vide"
-fi
-
 # Configuration réseau
 echo ""
 echo "🌐 CONFIGURATION RÉSEAU :"
