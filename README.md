@@ -97,20 +97,161 @@ sudo ./install-ubuntu-odoo.sh
 sudo ./install-ubuntu-odoo.sh  # Relancer pour désactivation auto des mots de passe
 ```
 
-## 🖥️ Configuration PuTTY (Windows)
+## 🖥️ Configuration SSH - Deux Méthodes
 
-### **A. Génération Clé SSH**
+### **🔑 MÉTHODE 1 - PuTTY (Windows)**
+
+#### **A. Génération Clé SSH avec PuTTYgen**
 1. **Télécharger** : [PuTTY + PuTTYgen](https://www.putty.org/)
-2. **PuTTYgen** : Type RSA, 4096 bits, Generate
-3. **Sauver** : `systemerp-prod.ppk` (clé privée)
-4. **Copier** : Clé publique (zone de texte)
+2. **Lancer PuTTYgen** :
+   - **Type of key** : RSA
+   - **Number of bits** : 4096
+   - **Cliquer Generate** et bouger la souris
+3. **Sauvegarder** :
+   - **Key comment** : `admin@systemerp-client`
+   - **Key passphrase** : (optionnel mais recommandé)
+   - **Save private key** : `systemerp-client.ppk`
+   - **Copier** le texte de la clé publique (zone "Public key for pasting...")
 
-### **B. Configuration Session PuTTY**
-- **Host** : IP_SERVEUR
-- **Port** : Port SSH configuré (défaut: 8173)
-- **SSH → Auth → Credentials** : Charger `systemerp-prod.ppk`
-- **Connection → Data** : Auto-login username: `sysadmin`
-- **Session** : Sauver comme `SystemERP-Prod`
+#### **B. Installation Clé sur Serveur**
+```bash
+# Connexion SSH temporaire avec mot de passe
+ssh -p 8173 sysadmin@IP_SERVEUR
+
+# Installation de la clé publique
+mkdir -p ~/.ssh
+nano ~/.ssh/authorized_keys
+# Coller la clé publique PuTTYgen (TOUT le texte)
+# Ctrl+X, Y, ENTRÉE pour sauvegarder
+
+# Permissions correctes
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/authorized_keys
+exit
+```
+
+#### **C. Configuration Session PuTTY**
+1. **PuTTY Configuration** :
+   - **Host Name** : IP_SERVEUR
+   - **Port** : PORT_SSH_CONFIGURÉ (ex: 8173)
+   - **Connection → SSH → Auth → Credentials** : 
+     - **Browse** → Sélectionner `systemerp-client.ppk`
+   - **Connection → Data** :
+     - **Auto-login username** : `sysadmin`
+2. **Session** :
+   - **Saved Sessions** : `SystemERP-Client`
+   - **Save**
+
+#### **D. Test et Finalisation**
+```bash
+# Test connexion avec clé (session PuTTY sauvée)
+# Si connexion réussie, relancer le script pour sécurisation auto :
+sudo ./install-ubuntu-odoo.sh
+# Le script détectera les clés et désactivera automatiquement les mots de passe SSH
+```
+
+---
+
+### **🔑 MÉTHODE 2 - Terminal Linux/Ubuntu**
+
+#### **A. Génération Clé SSH (sur votre PC Ubuntu/Linux)**
+```bash
+# Sur votre ordinateur Ubuntu/Linux
+ssh-keygen -t rsa -b 4096 -C "admin@systemerp-client"
+
+# Réponses aux questions :
+# Enter file in which to save the key: [ENTRÉE] (défaut)
+# Enter passphrase: [mot de passe optionnel]
+# Enter same passphrase again: [répéter mot de passe]
+
+# Vérification clé créée
+ls -la ~/.ssh/
+# Vous devez voir : id_rsa (privée) et id_rsa.pub (publique)
+```
+
+#### **B. Copie Clé vers Serveur**
+```bash
+# Méthode automatique (recommandée)
+ssh-copy-id -p PORT_SSH sysadmin@IP_SERVEUR
+# Exemple : ssh-copy-id -p 8173 sysadmin@192.168.1.100
+
+# OU méthode manuelle
+# Afficher votre clé publique
+cat ~/.ssh/id_rsa.pub
+
+# Copier le résultat, puis sur le serveur :
+ssh -p PORT_SSH sysadmin@IP_SERVEUR
+mkdir -p ~/.ssh
+nano ~/.ssh/authorized_keys
+# Coller votre clé publique
+chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys
+exit
+```
+
+#### **C. Test Connexion SSH avec Clé**
+```bash
+# Test connexion avec clé (depuis votre PC Ubuntu)
+ssh -p PORT_SSH sysadmin@IP_SERVEUR
+
+# Si connexion réussie sans mot de passe :
+# ✅ Configuration SSH réussie !
+
+# Pour sécurisation automatique, relancer le script :
+sudo ./install-ubuntu-odoo.sh
+# Le script détectera les clés et désactivera automatiquement les mots de passe
+```
+
+#### **D. Configuration SSH Client Permanente (Optionnel)**
+```bash
+# Créer configuration SSH locale pour faciliter connexion
+nano ~/.ssh/config
+
+# Ajouter :
+Host systemerp-client
+    HostName IP_SERVEUR
+    Port PORT_SSH
+    User sysadmin
+    IdentityFile ~/.ssh/id_rsa
+
+# Puis connexion simplifiée :
+ssh systemerp-client
+```
+
+---
+
+### **🔒 SÉCURISATION AUTOMATIQUE**
+
+#### **✅ Détection Automatique des Clés**
+Le script **détecte automatiquement** si des clés SSH sont configurées :
+
+1. **Si clés détectées et fonctionnelles** :
+   ```
+   🔒 SÉCURITÉ SSH : MAXIMALE (Mots de passe automatiquement désactivés)
+   ✅ Clés SSH détectées et fonctionnelles
+   ✅ PasswordAuthentication automatiquement désactivé
+   ```
+
+2. **Si clés non configurées** :
+   ```
+   🔑 CONFIGURATION CLÉS SSH REQUISE
+   [Instructions détaillées affichées]
+   PUIS relancer ce script pour sécurisation automatique
+   ```
+
+#### **🔄 Processus Recommandé**
+```bash
+# 1. Installation serveur
+sudo ./install-ubuntu-odoo.sh
+
+# 2. Configuration clés SSH (PuTTY ou Terminal)
+# [Suivre une des méthodes ci-dessus]
+
+# 3. Sécurisation automatique
+sudo ./install-ubuntu-odoo.sh
+# Script détecte les clés et sécurise automatiquement
+
+# 4. Connexion sécurisée uniquement par clés
+```
 
 ## 🌐 URLs d'Accès Final
 
