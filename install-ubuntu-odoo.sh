@@ -678,7 +678,7 @@ EOFDOC
 # NOUVEAU : Création du Cahier des Charges Final avec toutes les informations de cette installation
 log "Génération du Cahier des Charges Final de cette installation..."
 
-cat > /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md << EOFCAHIER
+cat > /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md << 'EOFCAHIER'
 # 📋 CAHIER DES CHARGES FINAL - INSTALLATION SYSTEMERP
 
 ## 🏢 INFORMATIONS GÉNÉRALES
@@ -690,35 +690,35 @@ cat > /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md << EOFCAHIE
 | **Système** | $(lsb_release -d | cut -f2) |
 | **Architecture** | $(uname -m) |
 | **Kernel** | $(uname -r) |
-| **IP Serveur** | $CURRENT_IP |
-| **Interface Réseau** | $NETWORK_INTERFACE |
-| **Passerelle** | $GATEWAY |
-| **Domaine Local** | $DOMAIN_LOCAL |
+| **IP Serveur** | CURRENT_IP_VALUE |
+| **Interface Réseau** | NETWORK_INTERFACE_VALUE |
+| **Passerelle** | GATEWAY_VALUE |
+| **Domaine Local** | DOMAIN_LOCAL_VALUE |
 
 ## 🔐 CONFIGURATION SÉCURITÉ
 
 ### 👤 Utilisateurs Système
 | Utilisateur | Rôle | Mot de Passe |
 |-------------|------|--------------|
-| **$ADMIN_USER** | Administrateur Système | [Défini lors installation] |
-| **$ODOO_USER** | Utilisateur Odoo | [Généré automatiquement] |
+| **ADMIN_USER_VALUE** | Administrateur Système | [Défini lors installation] |
+| **ODOO_USER_VALUE** | Utilisateur Odoo | [Généré automatiquement] |
 
 ### 🚪 Ports Personnalisés Configurés
 | Service | Port Standard | Port Configuré | Sécurité |
 |---------|---------------|----------------|----------|
-| **SSH** | 22 | **$SSH_PORT** | ✅ Obfusqué |
+| **SSH** | 22 | **SSH_PORT_VALUE** | ✅ Obfusqué |
 | **HTTP** | 80 | **80** | ✅ Nginx Proxy |
 | **HTTPS** | 443 | **443** | ✅ SSL Ready |
-| **Odoo** | 8069 | **$ODOO_PORT** | ✅ Masqué |
-| **Odoo LongPolling** | 8072 | **$ODOO_LONGPOLL_PORT** | ✅ Interne |
-| **PostgreSQL** | 5432 | **$POSTGRES_PORT** | ✅ Localhost Only |
-| **Webmin** | 10000 | **$WEBMIN_PORT** | ✅ SSL Forcé |
+| **Odoo** | 8069 | **ODOO_PORT_VALUE** | ✅ Masqué |
+| **Odoo LongPolling** | 8072 | **ODOO_LONGPOLL_PORT_VALUE** | ✅ Interne |
+| **PostgreSQL** | 5432 | **POSTGRES_PORT_VALUE** | ✅ Localhost Only |
+| **Webmin** | 10000 | **WEBMIN_PORT_VALUE** | ✅ SSL Forcé |
 
 ### 🔑 Authentification Configurée
 | Composant | Méthode | Status |
 |-----------|---------|--------|
-| **SSH** | Clés RSA 4096 | $(if [ "$SSH_PASSWORD_DISABLED" = true ]; then echo "✅ Sécurisé (Mots de passe désactivés)"; else echo "⚠️ Configuration manuelle requise"; fi) |
-| **Fail2Ban** | Anti-Intrusion | ✅ Actif sur port $SSH_PORT |
+| **SSH** | Clés RSA 4096 | SSH_STATUS_VALUE |
+| **Fail2Ban** | Anti-Intrusion | ✅ Actif sur port SSH_PORT_VALUE |
 | **UFW Firewall** | Filtrage Réseau | ✅ Actif (ports personnalisés) |
 
 ## 🗄️ BASE DE DONNÉES
@@ -726,16 +726,16 @@ cat > /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md << EOFCAHIE
 ### 📊 Configuration PostgreSQL
 | Paramètre | Valeur |
 |-----------|--------|
-| **Version** | $(sudo -u postgres psql -t -c "SELECT version();" | head -n1 | xargs) |
-| **Port** | **$POSTGRES_PORT** |
+| **Version** | PostgreSQL 14+ |
+| **Port** | **POSTGRES_PORT_VALUE** |
 | **Écoute** | localhost uniquement |
 | **Utilisateur Admin** | postgres |
-| **Utilisateur Odoo** | $ODOO_USER |
-| **Mot de Passe postgres** | $POSTGRES_ADMIN_PASS |
-| **Mot de Passe sys-erp** | $POSTGRES_USER_PASS |
+| **Utilisateur Odoo** | ODOO_USER_VALUE |
+| **Mot de Passe postgres** | POSTGRES_ADMIN_PASS_VALUE |
+| **Mot de Passe sys-erp** | POSTGRES_USER_PASS_VALUE |
 
 ### 🔐 Sécurité Base de Données
-- ✅ Port non-standard ($POSTGRES_PORT)
+- ✅ Port non-standard (POSTGRES_PORT_VALUE)
 - ✅ Accès localhost uniquement
 - ✅ Utilisateur dédié pour Odoo
 - ✅ Mots de passe forts configurés
@@ -745,24 +745,24 @@ cat > /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md << EOFCAHIE
 ### 📦 Installation Odoo
 | Paramètre | Valeur |
 |-----------|--------|
-| **Version Odoo** | $ODOO_VERSION |
-| **Port Web** | **$ODOO_PORT** |
-| **Port LongPolling** | **$ODOO_LONGPOLL_PORT** |
-| **Utilisateur Système** | $ODOO_USER |
-| **Mot de Passe Master** | $ODOO_MASTER_PASS |
+| **Version Odoo** | ODOO_VERSION_VALUE |
+| **Port Web** | **ODOO_PORT_VALUE** |
+| **Port LongPolling** | **ODOO_LONGPOLL_PORT_VALUE** |
+| **Utilisateur Système** | ODOO_USER_VALUE |
+| **Mot de Passe Master** | ODOO_MASTER_PASS_VALUE |
 
 ### 📁 Structure Fichiers Sécurisée
 ```
 /opt/odoo-secure/
-├── addons-custom/          # 🔒 Addons personnalisés (chmod 750)
-├── addons-external/        # 🔒 Addons tiers (chmod 750)
-├── config/                 # 🔒 Configuration (chmod 640)
-│   └── odoo.conf          # Configuration principale
-├── filestore/             # 🔒 Données Odoo (chmod 750)
-└── logs/                  # 📊 Logs (chmod 755)
+|-- addons-custom/          # Addons personnalisés (chmod 750)
+|-- addons-external/        # Addons tiers (chmod 750)
+|-- config/                 # Configuration (chmod 640)
+|   `-- odoo.conf          # Configuration principale
+|-- filestore/             # Données Odoo (chmod 750)
+`-- logs/                  # Logs (chmod 755)
 ```
 
-**Propriétaire :** $ODOO_USER:$ODOO_USER (sécurité maximale)
+**Propriétaire :** ODOO_USER_VALUE:ODOO_USER_VALUE (sécurité maximale)
 
 ### 🧩 Dépendances Python Installées
 - ✅ **dropbox** - Intégration Dropbox
@@ -778,37 +778,37 @@ cat > /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md << EOFCAHIE
 ### 🔄 Nginx Reverse Proxy
 | Paramètre | Valeur |
 |-----------|--------|
-| **Configuration** | /etc/nginx/sites-available/$DOMAIN_LOCAL |
-| **Domaine** | $DOMAIN_LOCAL |
-| **Proxy Vers** | localhost:$ODOO_PORT |
-| **WebSocket** | localhost:$ODOO_LONGPOLL_PORT |
+| **Configuration** | /etc/nginx/sites-available/DOMAIN_LOCAL_VALUE |
+| **Domaine** | DOMAIN_LOCAL_VALUE |
+| **Proxy Vers** | localhost:ODOO_PORT_VALUE |
+| **WebSocket** | localhost:ODOO_LONGPOLL_PORT_VALUE |
 | **SSL** | Prêt pour Let's Encrypt |
 
 ### ⚙️ Webmin Administration
 | Paramètre | Valeur |
 |-----------|--------|
-| **Port** | **$WEBMIN_PORT** |
+| **Port** | **WEBMIN_PORT_VALUE** |
 | **SSL** | ✅ Forcé |
-| **Accès** | https://$CURRENT_IP:$WEBMIN_PORT |
+| **Accès** | https://CURRENT_IP_VALUE:WEBMIN_PORT_VALUE |
 
 ## 🌐 URLS D'ACCÈS FINAL
 
 ### 🔗 Accès Client
 ```
-🏢 Odoo ERP          : http://$CURRENT_IP
-🏢 Odoo Direct       : http://$CURRENT_IP:$ODOO_PORT  
-⚙️ Webmin Admin      : https://$CURRENT_IP:$WEBMIN_PORT
-🔑 SSH PuTTY         : $CURRENT_IP:$SSH_PORT
+🏢 Odoo ERP          : http://CURRENT_IP_VALUE
+🏢 Odoo Direct       : http://CURRENT_IP_VALUE:ODOO_PORT_VALUE  
+⚙️ Webmin Admin      : https://CURRENT_IP_VALUE:WEBMIN_PORT_VALUE
+🔑 SSH PuTTY         : CURRENT_IP_VALUE:SSH_PORT_VALUE
 📊 Logs Odoo         : /opt/odoo-secure/logs/odoo.log
 💾 Sauvegardes       : /opt/backup/
 ```
 
 ### 🔧 Accès Technique Interne
 ```
-🗄️ PostgreSQL        : localhost:$POSTGRES_PORT
+🗄️ PostgreSQL        : localhost:POSTGRES_PORT_VALUE
 📁 Config Odoo       : /opt/odoo-secure/config/odoo.conf
 🔧 Config SSH        : /etc/ssh/sshd_config
-🌐 Config Nginx      : /etc/nginx/sites-available/$DOMAIN_LOCAL
+🌐 Config Nginx      : /etc/nginx/sites-available/DOMAIN_LOCAL_VALUE
 🛡️ Config Fail2ban   : /etc/fail2ban/jail.local
 ```
 
@@ -845,44 +845,39 @@ sudo crontab -l
 ### 🔥 Firewall UFW Status
 ```bash
 # Ports ouverts configurés :
-$SSH_PORT/tcp     # SSH personnalisé
+SSH_PORT_VALUE/tcp     # SSH personnalisé
 80/tcp            # HTTP
 443/tcp           # HTTPS  
-# Ports fermés par défaut : $ODOO_PORT, $POSTGRES_PORT, $WEBMIN_PORT (localhost)
+# Ports fermés par défaut : ODOO_PORT_VALUE, POSTGRES_PORT_VALUE, WEBMIN_PORT_VALUE (localhost)
 ```
 
 ### 🚫 Fail2Ban Protection
 | Service | Port | Max Tentatives | Temps Ban |
 |---------|------|----------------|-----------|
-| **SSH** | $SSH_PORT | 3 | 3600 secondes |
+| **SSH** | SSH_PORT_VALUE | 3 | 3600 secondes |
 
 ### 🔐 SSH Sécurisé
 ```bash
 # Configuration SSH active :
-Port $SSH_PORT
+Port SSH_PORT_VALUE
 PermitRootLogin no
 PubkeyAuthentication yes
-PasswordAuthentication $(if [ "$SSH_PASSWORD_DISABLED" = true ]; then echo "no"; else echo "yes (temporaire)"; fi)
+PasswordAuthentication SSH_PASSWORD_STATUS_VALUE
 MaxAuthTries 3
-AllowUsers $ADMIN_USER
+AllowUsers ADMIN_USER_VALUE
 ```
 
 ## 📊 ÉTAT SERVICES INSTALLATION
 
 ### ✅ Services Actifs Vérifiés
-$(systemctl is-active postgresql >/dev/null 2>&1 && echo "- ✅ **PostgreSQL** : Actif" || echo "- ❌ **PostgreSQL** : Problème")
-$(systemctl is-active nginx >/dev/null 2>&1 && echo "- ✅ **Nginx** : Actif" || echo "- ❌ **Nginx** : Problème")  
-$(systemctl is-active odoo >/dev/null 2>&1 && echo "- ✅ **Odoo** : Actif" || echo "- ❌ **Odoo** : Problème")
-$(systemctl is-active webmin >/dev/null 2>&1 && echo "- ✅ **Webmin** : Actif" || echo "- ❌ **Webmin** : Problème")
-$(systemctl is-active ssh >/dev/null 2>&1 && echo "- ✅ **SSH** : Actif" || echo "- ❌ **SSH** : Problème")
-$(systemctl is-active fail2ban >/dev/null 2>&1 && echo "- ✅ **Fail2ban** : Actif" || echo "- ❌ **Fail2ban** : Problème")
+SERVICES_STATUS_VALUE
 
 ### 📈 Ressources Système
 | Ressource | Utilisation |
 |-----------|-------------|
-| **CPU** | $(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)% utilisé |
-| **RAM** | $(free -h | awk 'NR==2{printf "%.1f%%", $3*100/$2 }') utilisée |
-| **Disque** | $(df -h / | awk 'NR==2{printf "%s utilisé sur %s (%s)", $3, $2, $5}') |
+| **CPU** | CPU_USAGE_VALUE% utilisé |
+| **RAM** | RAM_USAGE_VALUE utilisée |
+| **Disque** | DISK_USAGE_VALUE |
 
 ## 🔧 MAINTENANCE POST-INSTALLATION
 
@@ -923,13 +918,13 @@ sudo journalctl -f
 sudo systemctl restart postgresql nginx odoo webmin fail2ban
 
 # Vérification ports
-sudo ss -tlnp | grep -E "($SSH_PORT|$ODOO_PORT|$POSTGRES_PORT|$WEBMIN_PORT)"
+sudo ss -tlnp | grep -E "(SSH_PORT_VALUE|ODOO_PORT_VALUE|POSTGRES_PORT_VALUE|WEBMIN_PORT_VALUE)"
 ```
 
 ## 📞 SUPPORT ET CONTACT
 
 ### 📋 Informations Installation
-- **Script Version** : $(grep "^# Version" /root/install-ubuntu-odoo.sh 2>/dev/null || echo "Latest")
+- **Script Version** : Latest
 - **Date Installation** : $(date)
 - **Installé par** : $USER
 - **Serveur** : $(hostname)
@@ -939,7 +934,7 @@ sudo ss -tlnp | grep -E "($SSH_PORT|$ODOO_PORT|$POSTGRES_PORT|$WEBMIN_PORT)"
 /opt/backup/CAHIER-DES-CHARGES-FINAL-*.md    # Ce document
 /opt/odoo-secure/config/odoo.conf             # Configuration Odoo
 /etc/ssh/sshd_config                          # Configuration SSH
-/etc/nginx/sites-available/$DOMAIN_LOCAL      # Configuration Nginx
+/etc/nginx/sites-available/DOMAIN_LOCAL_VALUE      # Configuration Nginx
 /opt/backup/backup-odoo.sh                    # Script sauvegarde
 ```
 
@@ -955,9 +950,55 @@ sudo ss -tlnp | grep -E "($SSH_PORT|$ODOO_PORT|$POSTGRES_PORT|$WEBMIN_PORT)"
 
 ---
 
-**📥 Téléchargement disponible sur :** http://$CURRENT_IP/cahier-des-charges-final.md
+**📥 Téléchargement disponible sur :** http://CURRENT_IP_VALUE/cahier-des-charges-final.md
 
 EOFCAHIER
+
+# Remplacer les placeholders par les vraies valeurs
+sed -i "s/CURRENT_IP_VALUE/$CURRENT_IP/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+sed -i "s/NETWORK_INTERFACE_VALUE/$NETWORK_INTERFACE/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+sed -i "s/GATEWAY_VALUE/$GATEWAY/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+sed -i "s/DOMAIN_LOCAL_VALUE/$DOMAIN_LOCAL/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+sed -i "s/ADMIN_USER_VALUE/$ADMIN_USER/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+sed -i "s/ODOO_USER_VALUE/$ODOO_USER/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+sed -i "s/SSH_PORT_VALUE/$SSH_PORT/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+sed -i "s/ODOO_PORT_VALUE/$ODOO_PORT/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+sed -i "s/ODOO_LONGPOLL_PORT_VALUE/$ODOO_LONGPOLL_PORT/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+sed -i "s/POSTGRES_PORT_VALUE/$POSTGRES_PORT/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+sed -i "s/WEBMIN_PORT_VALUE/$WEBMIN_PORT/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+sed -i "s/ODOO_VERSION_VALUE/$ODOO_VERSION/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+sed -i "s/POSTGRES_ADMIN_PASS_VALUE/$POSTGRES_ADMIN_PASS/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+sed -i "s/POSTGRES_USER_PASS_VALUE/$POSTGRES_USER_PASS/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+sed -i "s/ODOO_MASTER_PASS_VALUE/$ODOO_MASTER_PASS/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+
+# Status SSH
+if [ "$SSH_PASSWORD_DISABLED" = true ]; then
+    sed -i "s/SSH_STATUS_VALUE/✅ Sécurisé (Mots de passe désactivés)/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+    sed -i "s/SSH_PASSWORD_STATUS_VALUE/no/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+else
+    sed -i "s/SSH_STATUS_VALUE/⚠️ Configuration manuelle requise/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+    sed -i "s/SSH_PASSWORD_STATUS_VALUE/yes (temporaire)/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+fi
+
+# Status services
+SERVICES_STATUS=""
+systemctl is-active postgresql >/dev/null 2>&1 && SERVICES_STATUS="${SERVICES_STATUS}- ✅ **PostgreSQL** : Actif\n" || SERVICES_STATUS="${SERVICES_STATUS}- ❌ **PostgreSQL** : Problème\n"
+systemctl is-active nginx >/dev/null 2>&1 && SERVICES_STATUS="${SERVICES_STATUS}- ✅ **Nginx** : Actif\n" || SERVICES_STATUS="${SERVICES_STATUS}- ❌ **Nginx** : Problème\n"
+systemctl is-active odoo >/dev/null 2>&1 && SERVICES_STATUS="${SERVICES_STATUS}- ✅ **Odoo** : Actif\n" || SERVICES_STATUS="${SERVICES_STATUS}- ❌ **Odoo** : Problème\n"
+systemctl is-active webmin >/dev/null 2>&1 && SERVICES_STATUS="${SERVICES_STATUS}- ✅ **Webmin** : Actif\n" || SERVICES_STATUS="${SERVICES_STATUS}- ❌ **Webmin** : Problème\n"
+systemctl is-active ssh >/dev/null 2>&1 && SERVICES_STATUS="${SERVICES_STATUS}- ✅ **SSH** : Actif\n" || SERVICES_STATUS="${SERVICES_STATUS}- ❌ **SSH** : Problème\n"
+systemctl is-active fail2ban >/dev/null 2>&1 && SERVICES_STATUS="${SERVICES_STATUS}- ✅ **Fail2ban** : Actif\n" || SERVICES_STATUS="${SERVICES_STATUS}- ❌ **Fail2ban** : Problème\n"
+
+sed -i "s/SERVICES_STATUS_VALUE/$SERVICES_STATUS/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+
+# Ressources système
+CPU_USAGE=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1 2>/dev/null || echo "N/A")
+RAM_USAGE=$(free -h | awk 'NR==2{printf "%.1f%%", $3*100/$2 }' 2>/dev/null || echo "N/A")
+DISK_USAGE=$(df -h / | awk 'NR==2{printf "%s utilisé sur %s (%s)", $3, $2, $5}' 2>/dev/null || echo "N/A")
+
+sed -i "s/CPU_USAGE_VALUE/$CPU_USAGE/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+sed -i "s/RAM_USAGE_VALUE/$RAM_USAGE/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+sed -i "s/DISK_USAGE_VALUE/$DISK_USAGE/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
 
 # Créer lien web pour téléchargement du cahier des charges
 ln -sf /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md /var/www/html/cahier-des-charges-final.md
