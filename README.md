@@ -2,7 +2,7 @@
 
 Script d'installation automatique pour **Ubuntu Server 22.04** avec **Odoo (16.0/17.0/18.0)**, PostgreSQL, Nginx et Webmin.
 
-## ⚡ Installation Ultra-Rapide (15-30 minutes)
+## ⚡ Installation Ultra-Rapide (5-10 minutes)
 
 ### **🔧 Prérequis Minimum**
 ```bash
@@ -11,11 +11,41 @@ sudo apt update
 sudo apt install -y nano wget curl  # Outils de base requis
 ```
 
-### **🚀 Installation Automatique Complète**
+### **🚀 Installation Automatique Complète avec Vérifications**
 ```bash
 wget https://raw.githubusercontent.com/a-bahou/ubuntu-odoo-installer/main/install-ubuntu-odoo.sh
 chmod +x install-ubuntu-odoo.sh
 sudo ./install-ubuntu-odoo.sh
+```
+
+**Le script vérifie automatiquement :**
+- ✅ Installation de tous les outils système
+- ✅ Fonctionnement des services (PostgreSQL, Nginx, Odoo, Webmin)
+- ✅ Connectivité sur tous les ports personnalisés
+- ✅ Dépendances Python pour modules Odoo avancés
+- ✅ wkhtmltopdf pour génération PDF
+
+### **📋 Processus Post-Installation**
+
+#### **1. Création Base de Données Odoo**
+```bash
+# Après installation, le Database Manager est OUVERT temporairement
+# Accédez à : http://IP_SERVEUR/web/database
+# Utilisez le Master Password fourni lors de l'installation
+# Créez votre base de données Odoo
+```
+
+#### **2. Sécurisation Automatique**
+```bash
+# IMPORTANT : Après création de votre base de données
+# Téléchargez et exécutez le script de sécurisation
+wget http://IP_SERVEUR/secure-after-db-creation.sh
+sudo bash secure-after-db-creation.sh
+
+# Ce script :
+# ✅ Ferme l'accès au Database Manager (list_db = False)
+# ✅ Applique les sécurisations finales
+# ✅ Redémarre Odoo avec la configuration sécurisée
 ```
 
 ## 🎯 Fonctionnalités Incluses
@@ -311,18 +341,76 @@ sudo systemctl status postgresql nginx odoo webmin ssh fail2ban
 sudo ss -tlnp | grep -E "(8173|9017|6792|12579)"
 ```
 
+### **Vérification Automatique Complète**
+```bash
+# Le script génère automatiquement des vérifications
+# Voir le rapport final d'installation pour :
+✅ État de tous les services
+✅ Connectivité sur tous les ports
+✅ Dépendances Python installées
+✅ wkhtmltopdf fonctionnel
+✅ Base de données PostgreSQL configurée
+```
+
 ### **Logs Système**
 ```bash
 sudo tail -f /opt/odoo-secure/logs/odoo.log
 sudo fail2ban-client status sshd
+sudo journalctl -u odoo -f
+```
+
+### **Test Database Manager**
+```bash
+# Avant sécurisation (Database Manager ouvert)
+curl -I http://IP_SERVEUR/web/database
+# Doit retourner : 200 OK
+
+# Après sécurisation (Database Manager fermé)
+curl -I http://IP_SERVEUR/web/database  
+# Doit retourner : erreur ou message "disabled"
 ```
 
 ## 🚨 Dépannage Rapide
+
+### **Installation - Vérifications Automatiques**
+Le script vérifie automatiquement chaque composant installé :
+
+```bash
+# Si erreur lors des vérifications :
+[ERREUR] Outils manquants après installation : curl wget
+[ERREUR] PostgreSQL ne démarre pas correctement
+[ERREUR] wkhtmltopdf non installé ou non fonctionnel
+[ERREUR] Odoo n'écoute pas sur le port 9017
+```
+
+**Solutions :**
+```bash
+# Réinstaller outils manquants
+sudo apt install -y curl wget git nano
+
+# Redémarrer services
+sudo systemctl restart postgresql nginx odoo webmin
+
+# Vérifier logs
+sudo journalctl -u odoo -f
+sudo journalctl -u postgresql -f
+```
 
 ### **Odoo ne démarre pas :**
 ```bash
 sudo chown -R odoo:odoo /opt/odoo-secure/
 sudo systemctl restart odoo
+```
+
+### **Database Manager fermé prématurément :**
+```bash
+# Si vous devez rouvrir le Database Manager
+sudo nano /opt/odoo-secure/config/odoo.conf
+# Changer : list_db = False → list_db = True
+sudo systemctl restart odoo
+
+# Après création DB, relancer la sécurisation
+sudo bash secure-after-db-creation.sh
 ```
 
 ### **Modules Odoo manquent des dépendances :**
@@ -353,6 +441,16 @@ sudo systemctl restart sshd
 ```bash
 sudo ufw status
 sudo ufw allow PORT_NUMBER/tcp
+```
+
+### **Script de sécurisation échoue :**
+```bash
+# Vérifier l'état d'Odoo
+sudo systemctl status odoo
+
+# Restaurer configuration précédente
+sudo cp /opt/odoo-secure/config/odoo.conf.backup-* /opt/odoo-secure/config/odoo.conf
+sudo systemctl restart odoo
 ```
 
 ## 🔐 Sécurité Post-Installation
@@ -436,6 +534,34 @@ sudo systemctl --failed
 
 ---
 
+## 🎯 Avantages du Système Amélioré
+
+### **🔍 Vérifications Automatiques**
+- ✅ **Zéro défaillance** : Chaque composant vérifié avant continuation
+- ✅ **Diagnostic précis** : Messages d'erreur clairs si problème
+- ✅ **Fiabilité maximale** : Installation garantie fonctionnelle
+- ✅ **Gain de temps** : Détection immédiate des problèmes
+
+### **🔒 Sécurité en Deux Phases**
+- ✅ **Phase 1** : Installation avec Database Manager ouvert (création DB)
+- ✅ **Phase 2** : Sécurisation automatique après création DB
+- ✅ **Flexibilité** : Possibilité de créer plusieurs bases avant sécurisation
+- ✅ **Sécurité finale** : Database Manager fermé définitivement
+
+### **📋 Documentation Automatique**
+- ✅ **Cahier des charges** complet avec toutes les informations
+- ✅ **Script de sécurisation** téléchargeable automatiquement  
+- ✅ **Mots de passe** sauvegardés pour chaque installation
+- ✅ **Traçabilité** complète de la configuration
+
+### **🛠️ Maintenance Simplifiée**
+- ✅ **Commandes de diagnostic** pré-configurées
+- ✅ **Scripts de dépannage** inclus
+- ✅ **Sauvegarde automatique** avec restauration facile
+- ✅ **Support technique** facilité par la documentation
+
+---
+
 **🚀 Installation automatisée développée pour la production critique**  
-**🔒 Sécurité maximale + Rapidité d'installation optimisée**  
-**📅 Mis à jour : Juin 2025**
+**🔒 Sécurité maximale + Vérifications systématiques + Documentation complète**  
+**📅 Mis à jour : Juillet 2025**
