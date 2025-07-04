@@ -44,6 +44,7 @@ sudo ./install-ubuntu-odoo.sh
 - ✅ **nextcloud-api-wrapper** - API Nextcloud avancée
 - ✅ **boto3** - Intégration AWS/S3
 - ✅ **paramiko** - Connexions SSH/SFTP
+- ✅ **lxml + lxml[html_clean] + lxml_html_clean** - Parsing XML/HTML complet
 - ✅ **Autres** : requests, cryptography, pillow, reportlab, qrcode, xlsxwriter, openpyxl...
 
 ### ⚙️ **Configuration Interactive Intelligente**
@@ -464,6 +465,19 @@ sudo systemctl restart postgresql
 sudo systemctl restart odoo
 ```
 
+### **❌ Erreur : "lxml.html.clean ImportError"**
+```bash
+# Diagnostic
+sudo journalctl -u odoo -n 10
+
+# Solution - Installation dépendance manquante
+sudo pip3 install 'lxml[html_clean]' lxml_html_clean
+
+# Redémarrage
+sudo systemctl restart odoo
+sudo systemctl status odoo
+```
+
 ### **❌ Erreur : "wkhtmltopdf PDF generation"**
 ```bash
 # Test wkhtmltopdf
@@ -519,7 +533,7 @@ sudo ufw status numbered
 
 ### **Dépendances Automatiques**
 - **Système** : nano, curl, wget, git, pip3, fontconfig, xfonts
-- **Python** : 16+ packages (dropbox, boto3, paramiko, etc.)
+- **Python** : 18+ packages (dropbox, boto3, paramiko, lxml[html_clean], etc.)
 - **PDF** : wkhtmltopdf version officielle
 - **Sécurité** : ufw, fail2ban, rsyslog avec logs traditionnels
 
