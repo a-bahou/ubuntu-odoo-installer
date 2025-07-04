@@ -222,6 +222,8 @@ pip3 install \
     cryptography \
     pillow \
     lxml \
+    'lxml[html_clean]' \
+    lxml_html_clean \
     reportlab \
     qrcode[pil] \
     xlsxwriter \
@@ -229,6 +231,8 @@ pip3 install \
     openpyxl \
     python-dateutil \
     pytz || warning "Certaines dépendances Python ont échoué (continuer...)"
+
+log "✅ Outils système et dépendances Python installés avec succès"
 
 log "✅ Outils système installés avec succès"
 
@@ -393,7 +397,7 @@ db_password = $POSTGRES_USER_PASS
 admin_passwd = $ODOO_MASTER_PASS
 
 # Sécurité renforcée
-list_db = False
+list_db = True
 db_filter = ^.*$
 proxy_mode = True
 
