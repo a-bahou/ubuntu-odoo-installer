@@ -337,11 +337,23 @@ DEBIAN_FRONTEND=noninteractive apt install -y nginx certbot python3-certbot-ngin
 systemctl enable nginx
 
 # Configuration reverse proxy Nginx
-log "Configuration du reverse proxy Nginx..."
+log "Configuration du reverse proxy Nginx pour Odoo..."
+log "Optimisation pour uploads volumineux (bases de données, modules)..."
 cat > /etc/nginx/sites-available/$DOMAIN_LOCAL << EOF
 server {
     listen 80;
     server_name $DOMAIN_LOCAL $CURRENT_IP;
+    
+    # Augmentation limites pour Odoo (bases de données volumineuses)
+    client_max_body_size 1024M;
+    client_body_timeout 300s;
+    client_header_timeout 300s;
+    
+    # Timeouts proxy pour opérations longues
+    proxy_connect_timeout 300s;
+    proxy_send_timeout 300s;
+    proxy_read_timeout 300s;
+    send_timeout 300s;
     
     # Redirection vers Odoo
     location / {
@@ -351,15 +363,34 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_redirect off;
+        
+        # Headers pour gros uploads
+        proxy_buffering off;
+        proxy_request_buffering off;
     }
     
-    # WebSocket pour Odoo
+    # WebSocket pour Odoo (longpolling)
     location /websocket {
         proxy_pass http://127.0.0.1:$ODOO_LONGPOLL_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+    
+    # Gestion fichiers statiques Odoo
+    location ~* /web/static/ {
+        proxy_cache_valid 200 90m;
+        proxy_buffering on;
+        expires 864000;
+        proxy_pass http://127.0.0.1:$ODOO_PORT;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
 EOF
@@ -397,7 +428,7 @@ db_password = $POSTGRES_USER_PASS
 admin_passwd = $ODOO_MASTER_PASS
 
 # Sécurité renforcée
-list_db = True
+list_db = False
 db_filter = ^.*$
 proxy_mode = True
 
