@@ -13,6 +13,9 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Variable globale pour collecter les avertissements d'installation
+INSTALLATION_WARNINGS=""
+
 # Fonction de log
 log() {
     echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')] $1${NC}"
@@ -197,6 +200,7 @@ DEBIAN_FRONTEND=noninteractive apt install -y \
 # NOUVEAU : Vérification installation des outils système
 log "Vérification de l'installation des outils système..."
 TOOLS_MISSING=""
+TOOLS_FAILED=""
 
 # Vérification outils critiques
 for tool in ufw fail2ban nano rsyslog cron curl wget git python3 pip3; do
@@ -206,10 +210,38 @@ for tool in ufw fail2ban nano rsyslog cron curl wget git python3 pip3; do
 done
 
 if [ ! -z "$TOOLS_MISSING" ]; then
-    error "Outils manquants après installation : $TOOLS_MISSING"
+    warning "Outils manquants détectés : $TOOLS_MISSING"
+    log "Tentative de réinstallation des outils manquants..."
+    
+    # Tentative de réinstallation individuelle des outils manquants
+    for tool in $TOOLS_MISSING; do
+        log "Réinstallation de $tool..."
+        if DEBIAN_FRONTEND=noninteractive apt install -y $tool -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"; then
+            log "✅ $tool installé avec succès"
+        else
+            warning "❌ Échec installation de $tool"
+            TOOLS_FAILED="${TOOLS_FAILED}$tool "
+        fi
+    done
+    
+    # Vérification finale
+    FINAL_MISSING=""
+    for tool in ufw fail2ban nano rsyslog cron curl wget git python3 pip3; do
+        if ! command -v $tool >/dev/null 2>&1; then
+            FINAL_MISSING="${FINAL_MISSING}$tool "
+        fi
+    done
+    
+    if [ ! -z "$FINAL_MISSING" ]; then
+        warning "Outils toujours manquants : $FINAL_MISSING"
+        warning "L'installation continue mais certaines fonctionnalités peuvent être limitées"
+        INSTALLATION_WARNINGS="${INSTALLATION_WARNINGS}\n⚠️ Outils manquants : $FINAL_MISSING"
+    else
+        log "✅ Tous les outils manquants ont été installés avec succès"
+    fi
+else
+    log "✅ Tous les outils système installés et vérifiés"
 fi
-
-log "✅ Tous les outils système installés et vérifiés"
 
 # Installation wkhtmltopdf (version officielle pour meilleure compatibilité)
 log "Installation de wkhtmltopdf (génération PDF Odoo)..."
@@ -232,7 +264,14 @@ if command -v wkhtmltopdf >/dev/null 2>&1; then
     WKHTMLTOPDF_VERSION_CHECK=$(wkhtmltopdf --version 2>/dev/null | head -n1 || echo "Version inconnue")
     log "✅ wkhtmltopdf fonctionnel : $WKHTMLTOPDF_VERSION_CHECK"
 else
-    error "wkhtmltopdf non installé ou non fonctionnel"
+    warning "wkhtmltopdf non installé ou non fonctionnel"
+    log "Tentative d'installation alternative de wkhtmltopdf..."
+    if DEBIAN_FRONTEND=noninteractive apt install -y wkhtmltopdf; then
+        log "✅ wkhtmltopdf installé via apt"
+    else
+        warning "❌ Échec installation wkhtmltopdf"
+        INSTALLATION_WARNINGS="${INSTALLATION_WARNINGS}\n⚠️ wkhtmltopdf non installé - génération PDF limitée"
+    fi
 fi
 
 # Installation des dépendances Python pour modules Odoo avancés
@@ -348,57 +387,120 @@ systemctl enable postgresql
 # NOUVEAU : Vérification PostgreSQL
 log "Vérification de l'installation PostgreSQL..."
 if ! systemctl is-active --quiet postgresql; then
+    log "PostgreSQL non démarré, tentative de démarrage..."
     systemctl start postgresql
     sleep 5
 fi
 
 if ! systemctl is-active --quiet postgresql; then
-    error "PostgreSQL ne démarre pas correctement"
+    warning "PostgreSQL ne démarre pas correctement"
+    log "Tentative de réinstallation PostgreSQL..."
+    DEBIAN_FRONTEND=noninteractive apt install -y --reinstall postgresql postgresql-contrib
+    systemctl enable postgresql
+    systemctl start postgresql
+    sleep 10
+    
+    if ! systemctl is-active --quiet postgresql; then
+        warning "❌ PostgreSQL ne fonctionne toujours pas"
+        INSTALLATION_WARNINGS="${INSTALLATION_WARNINGS}\n⚠️ PostgreSQL non fonctionnel - installation Odoo impossible"
+        # Ne pas arrêter le script, continuer avec les autres composants
+    else
+        log "✅ PostgreSQL démarré après réinstallation"
+    fi
+else
+    log "✅ PostgreSQL fonctionnel"
 fi
 
 if ! command -v psql >/dev/null 2>&1; then
-    error "psql (client PostgreSQL) non installé"
+    warning "psql (client PostgreSQL) non installé"
+    INSTALLATION_WARNINGS="${INSTALLATION_WARNINGS}\n⚠️ Client PostgreSQL manquant"
+else
+    log "✅ Client PostgreSQL disponible"
 fi
-
-log "✅ PostgreSQL installé et fonctionnel"
 
 # Configuration des utilisateurs PostgreSQL
 log "Configuration des utilisateurs PostgreSQL..."
-sudo -u postgres psql << EOF
+if systemctl is-active --quiet postgresql; then
+    sudo -u postgres psql << EOF
 ALTER USER postgres PASSWORD '$POSTGRES_ADMIN_PASS';
 CREATE USER "$ODOO_USER" WITH CREATEDB;
 ALTER USER "$ODOO_USER" PASSWORD '$POSTGRES_USER_PASS';
 \q
 EOF
 
-# NOUVEAU : Vérification création utilisateurs
-log "Vérification des utilisateurs PostgreSQL..."
-if ! sudo -u postgres psql -t -c "\du" | grep -q "$ODOO_USER"; then
-    error "Utilisateur $ODOO_USER non créé dans PostgreSQL"
+    # NOUVEAU : Vérification création utilisateurs
+    log "Vérification des utilisateurs PostgreSQL..."
+    if ! sudo -u postgres psql -t -c "\du" | grep -q "$ODOO_USER"; then
+        warning "Utilisateur $ODOO_USER non créé dans PostgreSQL"
+        log "Tentative de création manuelle de l'utilisateur..."
+        sudo -u postgres createuser --createdb "$ODOO_USER" 2>/dev/null || true
+        sudo -u postgres psql -c "ALTER USER \"$ODOO_USER\" PASSWORD '$POSTGRES_USER_PASS';" 2>/dev/null || true
+        
+        if sudo -u postgres psql -t -c "\du" | grep -q "$ODOO_USER"; then
+            log "✅ Utilisateur $ODOO_USER créé avec succès"
+        else
+            warning "❌ Impossible de créer l'utilisateur $ODOO_USER"
+            INSTALLATION_WARNINGS="${INSTALLATION_WARNINGS}\n⚠️ Utilisateur PostgreSQL $ODOO_USER non créé"
+        fi
+    else
+        log "✅ Utilisateurs PostgreSQL configurés et vérifiés"
+    fi
+else
+    warning "PostgreSQL non actif, impossible de configurer les utilisateurs"
+    INSTALLATION_WARNINGS="${INSTALLATION_WARNINGS}\n⚠️ Configuration utilisateurs PostgreSQL échouée"
 fi
-
-log "✅ Utilisateurs PostgreSQL configurés et vérifiés"
 
 # Configuration port personnalisé
 log "Configuration du port PostgreSQL: $POSTGRES_PORT"
 sed -i "s/#port = 5432/port = $POSTGRES_PORT/" /etc/postgresql/*/main/postgresql.conf
 sed -i "s/#listen_addresses = 'localhost'/listen_addresses = 'localhost'/" /etc/postgresql/*/main/postgresql.conf
 
-systemctl restart postgresql || error "Échec redémarrage PostgreSQL"
+# Configuration port personnalisé
+log "Configuration du port PostgreSQL: $POSTGRES_PORT"
+sed -i "s/#port = 5432/port = $POSTGRES_PORT/" /etc/postgresql/*/main/postgresql.conf
+sed -i "s/#listen_addresses = 'localhost'/listen_addresses = 'localhost'/" /etc/postgresql/*/main/postgresql.conf
 
-# NOUVEAU : Vérification port PostgreSQL
-log "Vérification du port PostgreSQL..."
-sleep 5
-if ! ss -tlnp | grep -q ":$POSTGRES_PORT"; then
-    error "PostgreSQL n'écoute pas sur le port $POSTGRES_PORT"
+if systemctl is-active --quiet postgresql; then
+    systemctl restart postgresql || warning "Échec redémarrage PostgreSQL"
+    
+    # NOUVEAU : Vérification port PostgreSQL
+    log "Vérification du port PostgreSQL..."
+    sleep 5
+    if ! ss -tlnp | grep -q ":$POSTGRES_PORT"; then
+        warning "PostgreSQL n'écoute pas sur le port $POSTGRES_PORT"
+        log "Tentative de correction de la configuration..."
+        
+        # Vérifier si la configuration a bien été appliquée
+        CURRENT_PORT=$(grep "^port" /etc/postgresql/*/main/postgresql.conf | cut -d'=' -f2 | tr -d ' ')
+        if [ "$CURRENT_PORT" != "$POSTGRES_PORT" ]; then
+            # Essayer une approche différente
+            echo "port = $POSTGRES_PORT" >> /etc/postgresql/*/main/postgresql.conf
+            systemctl restart postgresql
+            sleep 5
+        fi
+        
+        if ! ss -tlnp | grep -q ":$POSTGRES_PORT"; then
+            warning "❌ PostgreSQL n'écoute toujours pas sur le port $POSTGRES_PORT"
+            INSTALLATION_WARNINGS="${INSTALLATION_WARNINGS}\n⚠️ PostgreSQL port $POSTGRES_PORT non configuré"
+        else
+            log "✅ PostgreSQL maintenant sur le port $POSTGRES_PORT"
+        fi
+    else
+        log "✅ PostgreSQL configuré sur le port $POSTGRES_PORT"
+    fi
+
+    # Test connexion avec nouvel utilisateur
+    if systemctl is-active --quiet postgresql && sudo -u postgres psql -t -c "\du" | grep -q "$ODOO_USER"; then
+        if ! PGPASSWORD="$POSTGRES_USER_PASS" psql -h localhost -p $POSTGRES_PORT -U $ODOO_USER -d postgres -c "\q" >/dev/null 2>&1; then
+            warning "Impossible de se connecter à PostgreSQL avec l'utilisateur $ODOO_USER"
+            INSTALLATION_WARNINGS="${INSTALLATION_WARNINGS}\n⚠️ Connexion PostgreSQL utilisateur $ODOO_USER échouée"
+        else
+            log "✅ Connexion PostgreSQL avec $ODOO_USER fonctionnelle"
+        fi
+    fi
+else
+    warning "PostgreSQL non actif, configuration du port ignorée"
 fi
-
-# Test connexion avec nouvel utilisateur
-if ! PGPASSWORD="$POSTGRES_USER_PASS" psql -h localhost -p $POSTGRES_PORT -U $ODOO_USER -d postgres -c "\q" >/dev/null 2>&1; then
-    error "Impossible de se connecter à PostgreSQL avec l'utilisateur $ODOO_USER"
-fi
-
-log "✅ PostgreSQL configuré sur le port $POSTGRES_PORT et fonctionnel"
 
 #################################################################################
 # ÉTAPE 4: INSTALLATION NGINX + ODOO + WEBMIN
