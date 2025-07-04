@@ -393,7 +393,7 @@ db_password = $POSTGRES_USER_PASS
 admin_passwd = $ODOO_MASTER_PASS
 
 # Sécurité renforcée
-list_db = True
+list_db = False
 db_filter = ^.*$
 proxy_mode = True
 
@@ -1003,46 +1003,9 @@ sed -i "s/DISK_USAGE_VALUE/$DISK_USAGE/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$
 # Créer lien web pour téléchargement du cahier des charges
 ln -sf /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md /var/www/html/cahier-des-charges-final.md
 
-# Création du script de sécurisation post-installation
-log "Création du script de sécurisation post-installation..."
-cat > /opt/backup/securiser-odoo.sh << 'EOFSECURE'
-#!/bin/bash
-# Script de sécurisation post-installation Odoo
-# À exécuter APRÈS création de la base de données principale
-
-echo "🔒 SÉCURISATION POST-INSTALLATION ODOO"
-echo ""
-echo "⚠️  Ce script va fermer l'interface de gestion des bases de données"
-echo "    Exécutez-le APRÈS avoir créé votre base de données principale"
-echo ""
-
-read -p "Continuer ? (y/N): " -n 1 -r
-echo ""
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    exit 0
-fi
-
-# Désactiver interface de gestion DB
-sudo sed -i 's/list_db = True/list_db = False/' /opt/odoo-secure/config/odoo.conf
-
-# Redémarrer Odoo
-sudo systemctl restart odoo
-
-echo "✅ Interface de gestion des bases de données fermée"
-echo "✅ Odoo redémarré et sécurisé"
-echo ""
-echo "🌐 Accès final : http://$(hostname -I | awk '{print $1}')"
-EOFSECURE
-
-chmod +x /opt/backup/securiser-odoo.sh
-chown $ADMIN_USER:$ADMIN_USER /opt/backup/securiser-odoo.sh
-
 # Documentation accessible via web
 log "Documentation accessible via téléchargement web..."
 ln -sf /opt/backup/GUIDE-INSTALLATION-SystemERP.md /var/www/html/guide-installation.md
-
-# Script de sécurisation accessible via web
-ln -sf /opt/backup/securiser-odoo.sh /var/www/html/securiser-odoo.sh
 
 # NOUVELLE FONCTIONNALITÉ : Vérification et désactivation automatique des mots de passe SSH
 log "Vérification des clés SSH et sécurisation automatique..."
@@ -1147,7 +1110,6 @@ echo "📁 DOCUMENTATION SAUVEGARDÉE :"
 echo "   📋 Cahier des charges final : /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md"
 echo "   🌐 Téléchargement direct     : http://$CURRENT_IP/cahier-des-charges-final.md"
 echo "   📖 Guide installation       : http://$CURRENT_IP/guide-installation.md"
-echo "   🔒 Script sécurisation      : /opt/backup/securiser-odoo.sh"
 echo "   💾 Sauvegarde locale        : Disponible dans /opt/backup/"
 echo ""
 echo "🔐 INFORMATIONS IMPORTANTES SAUVEGARDÉES :"
@@ -1160,27 +1122,16 @@ echo "   📦 Version Odoo             : $ODOO_VERSION"
 echo "   🌐 IP Serveur               : $CURRENT_IP"
 echo "   🔑 Mots de passe            : Inclus dans le cahier des charges"
 echo ""
-echo "⚠️  IMPORTANT - GESTION BASE DE DONNÉES :"
-echo "   🔓 Interface de gestion des bases : OUVERTE (temporaire)"
-echo "   🎯 Créez votre base principale puis exécutez : /opt/backup/securiser-odoo.sh"
-echo "   🔒 Ceci fermera l'interface pour sécuriser la production"
-echo ""
 echo "📝 ÉTAPES SUIVANTES:"
 echo "   1. Testez l'accès Odoo: http://$CURRENT_IP"
-echo "   2. Créez votre base de données principale:"
-echo "      -> Allez sur: http://$CURRENT_IP"
-echo "      -> Cliquez 'Manage Databases' ou 'Gérer les bases de données'"
-echo "      -> Créez votre base avec vos paramètres"
-echo "   3. APRÈS création de la base, sécurisez l'installation:"
-echo "      -> Exécutez: /opt/backup/securiser-odoo.sh"
-echo "      -> Ceci fermera l'interface de gestion des bases"
-echo "   4. Testez l'accès Webmin: https://$CURRENT_IP:$WEBMIN_PORT"
+echo "   2. Testez l'accès Webmin: https://$CURRENT_IP:$WEBMIN_PORT"
+echo "   3. Téléchargez la documentation: http://$CURRENT_IP/guide-installation.md"
 if [ "$SSH_PASSWORD_DISABLED" = true ]; then
-    echo "   5. ✅ SSH sécurisé automatiquement (clés uniquement)"
-    echo "   6. Placez vos addons dans /opt/odoo-secure/addons-custom/"
+    echo "   4. ✅ SSH sécurisé automatiquement (clés uniquement)"
+    echo "   5. Placez vos addons dans /opt/odoo-secure/addons-custom/"
 else
-    echo "   5. Configurez vos clés SSH (voir documentation)"
-    echo "   6. Relancez ce script pour sécurisation SSH automatique"
+    echo "   4. Configurez vos clés SSH PuTTY (voir documentation)"
+    echo "   5. Relancez ce script pour désactivation automatique des mots de passe"
 fi
 echo ""
 echo "📊 ÉTAT DES SERVICES:"
