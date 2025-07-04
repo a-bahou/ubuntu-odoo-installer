@@ -2,7 +2,7 @@
 
 Script d'installation automatique pour **Ubuntu Server 22.04** avec **Odoo (16.0/17.0/18.0)**, PostgreSQL, Nginx et Webmin.
 
-## ⚡ Installation Ultra-Rapide (5-10 minutes)
+## ⚡ Installation Ultra-Rapide (5-8 minutes)
 
 ### **🔧 Prérequis Minimum**
 ```bash
@@ -11,42 +11,14 @@ sudo apt update
 sudo apt install -y nano wget curl  # Outils de base requis
 ```
 
-### **🚀 Installation Automatique Complète avec Vérifications**
+### **🚀 Installation Automatique Complète**
 ```bash
 wget https://raw.githubusercontent.com/a-bahou/ubuntu-odoo-installer/main/install-ubuntu-odoo.sh
 chmod +x install-ubuntu-odoo.sh
 sudo ./install-ubuntu-odoo.sh
 ```
 
-**Le script vérifie automatiquement :**
-- ✅ Installation de tous les outils système
-- ✅ Fonctionnement des services (PostgreSQL, Nginx, Odoo, Webmin)
-- ✅ Connectivité sur tous les ports personnalisés
-- ✅ Dépendances Python pour modules Odoo avancés
-- ✅ wkhtmltopdf pour génération PDF
-
-### **📋 Processus Post-Installation**
-
-#### **1. Création Base de Données Odoo**
-```bash
-# Après installation, le Database Manager est OUVERT temporairement
-# Accédez à : http://IP_SERVEUR/web/database
-# Utilisez le Master Password fourni lors de l'installation
-# Créez votre base de données Odoo
-```
-
-#### **2. Sécurisation Automatique**
-```bash
-# IMPORTANT : Après création de votre base de données
-# Téléchargez et exécutez le script de sécurisation
-wget http://IP_SERVEUR/secure-after-db-creation.sh
-sudo bash secure-after-db-creation.sh
-
-# Ce script :
-# ✅ Ferme l'accès au Database Manager (list_db = False)
-# ✅ Applique les sécurisations finales
-# ✅ Redémarre Odoo avec la configuration sécurisée
-```
+**Le script vous demande quelques configurations au début, puis s'exécute automatiquement sans interruption !**
 
 ## 🎯 Fonctionnalités Incluses
 
@@ -54,31 +26,38 @@ sudo bash secure-after-db-creation.sh
 - ✅ **Firewall UFW** avec ports personnalisés
 - ✅ **SSH sécurisé** + désactivation automatique mots de passe
 - ✅ **Fail2ban** anti-intrusion
-- ✅ **PostgreSQL** port personnalisé
-- ✅ **Odoo structure sécurisée** (addons protégés)
-- ✅ **Chiffrement** configurations sensibles
+- ✅ **PostgreSQL** port personnalisé + utilisateur dédié
+- ✅ **Odoo structure sécurisée** (addons protégés chmod 750)
+- ✅ **Détection automatique clés SSH** + sécurisation
 
 ### 🏢 **Applications Installées**
-- ✅ **Odoo** (version configurable)
-- ✅ **PostgreSQL** avec port custom
-- ✅ **Nginx** reverse proxy
-- ✅ **Webmin** administration web
-- ✅ **wkhtmltopdf** (génération PDF optimisée)
-- ✅ **Sauvegarde automatique** quotidienne
+- ✅ **Odoo** (version configurable 16.0/17.0/18.0)
+- ✅ **PostgreSQL** avec port custom + utilisateur dédié
+- ✅ **Nginx** reverse proxy complet
+- ✅ **Webmin** administration web (port SSL custom)
+- ✅ **wkhtmltopdf** (génération PDF optimisée - version officielle)
+- ✅ **Sauvegarde automatique** quotidienne avec rétention
 
-### 🐍 **Dépendances Python Incluses**
+### 🐍 **Dépendances Python Complètes**
 - ✅ **dropbox** - Intégration Dropbox
 - ✅ **pyncclient** - Connexion Nextcloud
 - ✅ **nextcloud-api-wrapper** - API Nextcloud avancée
 - ✅ **boto3** - Intégration AWS/S3
 - ✅ **paramiko** - Connexions SSH/SFTP
-- ✅ **Autres** : requests, cryptography, pillow, reportlab, qrcode, xlsxwriter...
+- ✅ **Autres** : requests, cryptography, pillow, reportlab, qrcode, xlsxwriter, openpyxl...
 
-### ⚙️ **Configuration Interactive**
+### ⚙️ **Configuration Interactive Intelligente**
 - ✅ **Ports personnalisés** (SSH, Odoo, PostgreSQL, Webmin)
 - ✅ **Version Odoo** au choix (16.0, 17.0, 18.0)
 - ✅ **IP fixe** (détection auto + option manuelle)
 - ✅ **Mots de passe** (défaut B@hou1983 ou personnalisé)
+- ✅ **Installation 100% automatique** après configuration
+
+### 📋 **Documentation Automatique**
+- ✅ **Cahier des charges final** généré automatiquement
+- ✅ **Tous les mots de passe** de l'installation inclus
+- ✅ **Configuration complète** documentée
+- ✅ **Téléchargeable immédiatement** sur le serveur
 
 ## 🔧 Ports par Défaut (Configurables)
 
@@ -91,17 +70,27 @@ sudo bash secure-after-db-creation.sh
 | PostgreSQL | 5432          | 6792              | ✅ Interne    |
 | Webmin     | 10000         | 12579             | ✅ SSL        |
 
-## 📋 Processus d'Installation
+## 📋 Processus d'Installation Optimisé
 
 ### 🔑 **Option 1 - Sécurité Maximale (RECOMMANDÉE)**
 
-**1. Configuration PuTTY d'abord :**
+**1. Configuration SSH d'abord (Choisir votre méthode) :**
+
+#### **Windows (PuTTY) :**
 ```bash
-# Sur le serveur Ubuntu (nano inclus automatiquement dans le script)
+# 1. PuTTYgen : RSA 4096 bits, Generate, Save: systemerp-client.ppk
+# 2. Sur serveur :
 mkdir -p ~/.ssh
 nano ~/.ssh/authorized_keys
-# Coller votre clé publique PuTTY
+# Coller clé publique PuTTY
 chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys
+```
+
+#### **Linux/Ubuntu (Terminal) :**
+```bash
+# Sur votre PC Linux :
+ssh-keygen -t rsa -b 4096 -C "admin@systemerp-client"
+ssh-copy-id -p PORT_SSH sysadmin@IP_SERVEUR
 ```
 
 **2. Installation automatique complète :**
@@ -111,7 +100,9 @@ chmod +x install-ubuntu-odoo.sh
 sudo ./install-ubuntu-odoo.sh
 ```
 
-**Résultat :** 🔒 **Sécurisation SSH automatique** (mots de passe désactivés)
+**Résultat :** 🔒 **Sécurisation SSH automatique** (mots de passe désactivés automatiquement)
+
+---
 
 ### 🔧 **Option 2 - Installation Rapide**
 
@@ -120,12 +111,34 @@ sudo ./install-ubuntu-odoo.sh
 sudo ./install-ubuntu-odoo.sh
 ```
 
-**2. Configuration PuTTY après installation**
-
+**2. Configuration SSH après installation**  
 **3. Sécurisation automatique :**
 ```bash
-sudo ./install-ubuntu-odoo.sh  # Relancer pour désactivation auto des mots de passe
+sudo ./install-ubuntu-odoo.sh  # Relancer → détection clés + sécurisation auto
 ```
+
+## ⚙️ Configuration Interactive du Script
+
+### **🎛️ Questions Posées (Valeurs par Défaut Disponibles)**
+```
+🔧 CONFIGURATION DES PORTS :
+Port SSH [8173]: 
+Port Webmin [12579]: 
+Port Odoo [9017]: 
+Port PostgreSQL [6792]: 
+
+📦 VERSION ODOO :
+Version Odoo [17.0]: 18.0
+
+🌐 CONFIGURATION RÉSEAU :
+Adresse IP serveur [détectée automatiquement]: 
+
+🔐 CONFIGURATION DES MOTS DE PASSE :
+Mot de passe PostgreSQL [B@hou1983]: 
+Mot de passe Master Odoo [B@hou1983]: 
+```
+
+**Puis installation automatique 5-8 minutes sans interruption !**
 
 ## 🖥️ Configuration SSH - Deux Méthodes
 
@@ -285,11 +298,48 @@ sudo ./install-ubuntu-odoo.sh
 
 ## 🌐 URLs d'Accès Final
 
+### **🔗 Accès Utilisateur**
 ```
-🏢 Odoo ERP       : http://IP_SERVEUR
-⚙️ Webmin Admin   : https://IP_SERVEUR:PORT_WEBMIN
-🔑 SSH PuTTY      : IP_SERVEUR:PORT_SSH
-🗄️ PostgreSQL     : localhost:PORT_POSTGRES (interne)
+🏢 Odoo ERP          : http://IP_SERVEUR
+🏢 Odoo Direct       : http://IP_SERVEUR:PORT_ODOO
+⚙️ Webmin Admin      : https://IP_SERVEUR:PORT_WEBMIN
+🔑 SSH               : IP_SERVEUR:PORT_SSH
+```
+
+### **📋 Documentation Automatique**
+```
+📖 Guide Installation      : http://IP_SERVEUR/guide-installation.md
+📋 Cahier des Charges     : http://IP_SERVEUR/cahier-des-charges-final.md
+💾 Sauvegarde Locale      : /opt/backup/
+```
+
+**Exemple avec IP 192.168.1.100 :**
+```
+🏢 Odoo ERP          : http://192.168.1.100
+⚙️ Webmin Admin      : https://192.168.1.100:12579
+🔑 SSH PuTTY         : 192.168.1.100:8173
+📋 Cahier des Charges: http://192.168.1.100/cahier-des-charges-final.md
+```
+
+## 📋 Cahier des Charges Automatique
+
+### **🎯 Contenu Généré Automatiquement**
+- ✅ **Informations serveur** (IP, hostname, date installation)
+- ✅ **Tous les ports configurés** pour cette installation
+- ✅ **Tous les mots de passe** utilisés
+- ✅ **Configuration sécurité** (SSH, Firewall, Fail2ban)
+- ✅ **Structure Odoo** et dépendances installées
+- ✅ **URLs d'accès** spécifiques au serveur
+- ✅ **Commandes maintenance** personnalisées
+- ✅ **État des services** au moment de l'installation
+
+### **💾 Téléchargement**
+```bash
+# Immédiatement après installation :
+wget http://IP_SERVEUR/cahier-des-charges-final.md
+
+# Sauvegarde locale pour vos archives :
+cp cahier-des-charges-final.md "Client-$(date +%Y%m%d)-Installation.md"
 ```
 
 ## 📁 Structure Sécurisée Odoo
@@ -331,126 +381,99 @@ Grâce aux dépendances Python installées, ces modules fonctionnent immédiatem
 
 ## 🔍 Vérification Installation
 
-### **Services Actifs**
+### **✅ Services Actifs (Tous doivent être "active")**
 ```bash
 sudo systemctl status postgresql nginx odoo webmin ssh fail2ban
 ```
 
-### **Ports en Écoute**
+### **✅ Ports en Écoute**
 ```bash
 sudo ss -tlnp | grep -E "(8173|9017|6792|12579)"
 ```
 
-### **Vérification Automatique Complète**
-```bash
-# Le script génère automatiquement des vérifications
-# Voir le rapport final d'installation pour :
-✅ État de tous les services
-✅ Connectivité sur tous les ports
-✅ Dépendances Python installées
-✅ wkhtmltopdf fonctionnel
-✅ Base de données PostgreSQL configurée
+**Résultat attendu :**
+```
+LISTEN 0  128  0.0.0.0:8173   (sshd)      # SSH
+LISTEN 0  128  0.0.0.0:9017   (odoo)      # Odoo
+LISTEN 0  128  localhost:6792 (postgres)  # PostgreSQL
+LISTEN 0  128  0.0.0.0:12579  (miniserv)  # Webmin
 ```
 
-### **Logs Système**
+### **✅ Test Accès Web**
 ```bash
-sudo tail -f /opt/odoo-secure/logs/odoo.log
-sudo fail2ban-client status sshd
-sudo journalctl -u odoo -f
+# Test Odoo local
+curl -I http://localhost:9017
+# Doit retourner : HTTP/1.0 303 SEE OTHER
+
+# Test depuis navigateur
+# http://IP_SERVEUR → Page login Odoo
+# https://IP_SERVEUR:12579 → Interface Webmin
 ```
 
-### **Test Database Manager**
+### **✅ Vérification Sécurité SSH**
 ```bash
-# Avant sécurisation (Database Manager ouvert)
-curl -I http://IP_SERVEUR/web/database
-# Doit retourner : 200 OK
+# Vérifier port SSH custom
+sudo ss -tlnp | grep :8173
 
-# Après sécurisation (Database Manager fermé)
-curl -I http://IP_SERVEUR/web/database  
-# Doit retourner : erreur ou message "disabled"
+# Vérifier config SSH
+sudo grep -E "(Port|PasswordAuthentication)" /etc/ssh/sshd_config
+
+# Test clés SSH (depuis votre PC)
+ssh -p 8173 sysadmin@IP_SERVEUR  # Doit fonctionner sans mot de passe
 ```
 
 ## 🚨 Dépannage Rapide
 
-### **Installation - Vérifications Automatiques**
-Le script vérifie automatiquement chaque composant installé :
-
+### **❌ Erreur : "Odoo Inactif"**
 ```bash
-# Si erreur lors des vérifications :
-[ERREUR] Outils manquants après installation : curl wget
-[ERREUR] PostgreSQL ne démarre pas correctement
-[ERREUR] wkhtmltopdf non installé ou non fonctionnel
-[ERREUR] Odoo n'écoute pas sur le port 9017
-```
+# Diagnostic
+sudo systemctl status odoo
+sudo journalctl -u odoo -n 20
 
-**Solutions :**
-```bash
-# Réinstaller outils manquants
-sudo apt install -y curl wget git nano
-
-# Redémarrer services
-sudo systemctl restart postgresql nginx odoo webmin
-
-# Vérifier logs
-sudo journalctl -u odoo -f
-sudo journalctl -u postgresql -f
-```
-
-### **Odoo ne démarre pas :**
-```bash
+# Solution
 sudo chown -R odoo:odoo /opt/odoo-secure/
 sudo systemctl restart odoo
 ```
 
-### **Database Manager fermé prématurément :**
+### **❌ Erreur : "Port SSH connection refused"**
 ```bash
-# Si vous devez rouvrir le Database Manager
-sudo nano /opt/odoo-secure/config/odoo.conf
-# Changer : list_db = False → list_db = True
+# Vérifier firewall
+sudo ufw status
+sudo ufw allow 8173/tcp
+
+# Vérifier service SSH
+sudo systemctl status ssh
+sudo systemctl restart ssh
+```
+
+### **❌ Erreur : "Webmin SSL certificate"**
+```bash
+# Régénérer certificat Webmin
+sudo /usr/share/webmin/miniserv.pl /etc/webmin/miniserv.conf &
+sudo systemctl restart webmin
+```
+
+### **❌ Erreur : "PostgreSQL connection failed"**
+```bash
+# Vérifier PostgreSQL
+sudo systemctl status postgresql
+sudo ss -tlnp | grep 6792
+
+# Redémarrage
+sudo systemctl restart postgresql
 sudo systemctl restart odoo
-
-# Après création DB, relancer la sécurisation
-sudo bash secure-after-db-creation.sh
 ```
 
-### **Modules Odoo manquent des dépendances :**
-```bash
-# Réinstallation dépendances Python
-sudo pip3 install --upgrade dropbox pyncclient nextcloud-api-wrapper boto3 paramiko
-
-# Vérification wkhtmltopdf
-wkhtmltopdf --version
-```
-
-### **Génération PDF ne fonctionne pas :**
+### **❌ Erreur : "wkhtmltopdf PDF generation"**
 ```bash
 # Test wkhtmltopdf
-echo "<h1>Test PDF</h1>" | wkhtmltopdf - test.pdf
-# Si erreur, réinstaller :
+wkhtmltopdf --version
+
+# Réinstallation si nécessaire
 sudo apt install -y wkhtmltopdf
-```
-
-### **SSH bloqué :**
-```bash
-# Accès physique au serveur :
-sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
-sudo systemctl restart sshd
-```
-
-### **Firewall bloque l'accès :**
-```bash
-sudo ufw status
-sudo ufw allow PORT_NUMBER/tcp
-```
-
-### **Script de sécurisation échoue :**
-```bash
-# Vérifier l'état d'Odoo
-sudo systemctl status odoo
-
-# Restaurer configuration précédente
-sudo cp /opt/odoo-secure/config/odoo.conf.backup-* /opt/odoo-secure/config/odoo.conf
-sudo systemctl restart odoo
+# Ou version officielle :
+wget https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.jammy_amd64.deb
+sudo dpkg -i wkhtmltox_0.12.6.1-2.jammy_amd64.deb
 ```
 
 ## 🔐 Sécurité Post-Installation
@@ -492,76 +515,135 @@ sudo ufw status numbered
 - **PostgreSQL** : 14+
 - **Python** : 3.10
 - **Nginx** : 1.18+
-- **wkhtmltopdf** : 0.12.6+ (version officielle)
+- **wkhtmltopdf** : 0.12.6+ (version officielle GitHub)
 
 ### **Dépendances Automatiques**
-- **Système** : nano, curl, wget, git, pip3
-- **Python** : dropbox, boto3, paramiko, pyncclient, nextcloud-api-wrapper
-- **PDF** : wkhtmltopdf (version officielle GitHub)
-- **Fonts** : fontconfig, xfonts-base, xfonts-75dpi
+- **Système** : nano, curl, wget, git, pip3, fontconfig, xfonts
+- **Python** : 16+ packages (dropbox, boto3, paramiko, etc.)
+- **PDF** : wkhtmltopdf version officielle
+- **Sécurité** : ufw, fail2ban, rsyslog avec logs traditionnels
+
+### **Temps d'Installation**
+- **Configuration interactive** : 2-3 minutes
+- **Installation automatique** : 5-8 minutes
+- **Total** : 7-11 minutes selon connexion Internet
+
+## 🔧 Maintenance Post-Installation
+
+### **📅 Tâches Automatiques**
+- **Sauvegarde quotidienne** : 02h00 (base de données + filestore + configs)
+- **Rétention** : 7 jours automatique
+- **Logs** : Rotation automatique via systemd
+
+### **📅 Tâches Manuelles Recommandées**
+
+#### **Hebdomadaires**
+```bash
+# Mise à jour système
+sudo apt update && sudo apt upgrade -y
+
+# Vérification logs erreurs
+sudo journalctl --since "1 week ago" --priority=err
+
+# Test sauvegarde
+ls -la /opt/backup/ && /opt/backup/backup-odoo.sh
+```
+
+#### **Mensuelles**
+```bash
+# Nettoyage logs anciens
+sudo journalctl --vacuum-time=30d
+
+# Vérification espace disque
+df -h
+
+# Test fonctionnement SSH
+ssh -p PORT_SSH sysadmin@localhost
+```
+
+### **🚨 Commandes Support**
+```bash
+# Diagnostic complet
+sudo systemctl --failed
+sudo ss -tlnp | grep -E "(8173|9017|6792|12579)"
+
+# Redémarrage services
+sudo systemctl restart postgresql nginx odoo webmin fail2ban
+
+# Logs temps réel
+sudo journalctl -f
+sudo tail -f /opt/odoo-secure/logs/odoo.log
+```
 
 ## 🎯 Cas d'Usage
 
 ### **Production Entreprise**
-- ✅ **PME** : 5-50 utilisateurs
-- ✅ **Données critiques** : Chiffrement + sauvegarde
-- ✅ **Accès distant** : SSH clés + VPN recommandé
-- ✅ **Maintenance** : Monitoring automatique
+- ✅ **PME** : 5-50 utilisateurs Odoo
+- ✅ **Données critiques** : Sauvegarde + sécurité maximale
+- ✅ **Accès distant** : SSH clés + Webmin SSL
+- ✅ **Maintenance** : Documentation automatique
+
+### **Multi-Clients**
+- ✅ **Ports différents** par client
+- ✅ **Cahier des charges** spécifique par installation
+- ✅ **Support facilité** : Documentation complète
+- ✅ **Déploiement rapide** : 7-11 minutes par serveur
 
 ### **Développement/Test**
-- ✅ **Environnement isolé** : Addons personnalisés
-- ✅ **Déploiement rapide** : 15-30 minutes
-- ✅ **Configuration flexible** : Ports variables
+- ✅ **Environnement isolé** : Structure addons sécurisée
+- ✅ **Versions flexibles** : Odoo 16/17/18 au choix
+- ✅ **Configuration rapide** : Script intelligent
 
 ## 🆘 Support
 
-### **Logs de Diagnostic**
+### **📋 Logs de Diagnostic**
 ```bash
-# Logs installation
-sudo journalctl -u odoo -f
+# Script installation
+/var/log/syslog | grep "install-ubuntu-odoo"
 
 # Configuration SSH
-sudo sshd -T
+sudo sshd -T | grep -E "(port|password)"
 
-# Status complet
-sudo systemctl --failed
+# Status services
+sudo systemctl list-units --failed
 ```
 
-### **Community & Issues**
-- **GitHub** : [a-bahou/ubuntu-odoo-installer](https://github.com/a-bahou/ubuntu-odoo-installer)
-- **Documentation** : README.md
-- **Issues** : GitHub Issues
+### **📞 Informations Support**
+- **Repository** : [a-bahou/ubuntu-odoo-installer](https://github.com/a-bahou/ubuntu-odoo-installer)
+- **Documentation** : README.md + Cahier des charges auto-généré
+- **Version** : 2.0 (Juillet 2025)
 
 ---
 
-## 🎯 Avantages du Système Amélioré
+## 🚀 NOUVEAUTÉS VERSION 2.0
 
-### **🔍 Vérifications Automatiques**
-- ✅ **Zéro défaillance** : Chaque composant vérifié avant continuation
-- ✅ **Diagnostic précis** : Messages d'erreur clairs si problème
-- ✅ **Fiabilité maximale** : Installation garantie fonctionnelle
-- ✅ **Gain de temps** : Détection immédiate des problèmes
+### **⚡ Améliorations Majeures**
+- ✅ **Installation ultra-rapide** : 5-8 minutes (vs 15-30 avant)
+- ✅ **Configuration interactive** intelligente avec valeurs par défaut
+- ✅ **Mode 100% non-interactif** : Aucune interruption après lancement
+- ✅ **Détection automatique SSH** : Sécurisation auto si clés présentes
+- ✅ **Documentation automatique** : Cahier des charges personnalisé généré
 
-### **🔒 Sécurité en Deux Phases**
-- ✅ **Phase 1** : Installation avec Database Manager ouvert (création DB)
-- ✅ **Phase 2** : Sécurisation automatique après création DB
-- ✅ **Flexibilité** : Possibilité de créer plusieurs bases avant sécurisation
-- ✅ **Sécurité finale** : Database Manager fermé définitivement
+### **🔒 Sécurité Renforcée**
+- ✅ **Structure Odoo protégée** : Addons dans `/opt/odoo-secure/` (chmod 750)
+- ✅ **Double méthode SSH** : Support PuTTY (Windows) + Terminal (Linux)
+- ✅ **Firewall intelligent** : Ports customs + protection automatique
+- ✅ **Fail2ban optimisé** : Protection sur port SSH personnalisé
+
+### **📦 Dépendances Complètes**
+- ✅ **wkhtmltopdf officiel** : Version GitHub pour PDF parfaits
+- ✅ **Python packages** : 16+ modules pour tous addons Marketplace
+- ✅ **Cloud ready** : Dropbox, AWS S3, Nextcloud intégrés
+- ✅ **Automation** : paramiko pour SSH/SFTP automatisé
 
 ### **📋 Documentation Automatique**
-- ✅ **Cahier des charges** complet avec toutes les informations
-- ✅ **Script de sécurisation** téléchargeable automatiquement  
-- ✅ **Mots de passe** sauvegardés pour chaque installation
-- ✅ **Traçabilité** complète de la configuration
-
-### **🛠️ Maintenance Simplifiée**
-- ✅ **Commandes de diagnostic** pré-configurées
-- ✅ **Scripts de dépannage** inclus
-- ✅ **Sauvegarde automatique** avec restauration facile
-- ✅ **Support technique** facilité par la documentation
+- ✅ **Cahier des charges** généré avec infos spécifiques installation
+- ✅ **Tous mots de passe** inclus dans documentation
+- ✅ **Téléchargement immédiat** : `http://IP_SERVEUR/cahier-des-charges-final.md`
+- ✅ **Support facilité** : Toutes infos clients centralisées
 
 ---
 
 **🚀 Installation automatisée développée pour la production critique**  
-**🔒 Sécurité maximale + Vérifications systématiques + Documentation complète**  
-**📅 Mis à jour : Juillet 2025**
+**🔒 Sécurité maximale + Rapidité d'installation optimisée**  
+**📅 Version 2.0 - Juillet 2025**
