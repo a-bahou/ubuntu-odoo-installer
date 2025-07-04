@@ -13,9 +13,6 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Variable globale pour collecter les avertissements d'installation
-INSTALLATION_WARNINGS=""
-
 # Fonction de log
 log() {
     echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')] $1${NC}"
@@ -197,52 +194,6 @@ DEBIAN_FRONTEND=noninteractive apt install -y \
     libfribidi-dev libxcb1-dev fontconfig libxrender1 xfonts-75dpi xfonts-base \
     -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" || error "Échec installation outils"
 
-# NOUVEAU : Vérification installation des outils système
-log "Vérification de l'installation des outils système..."
-TOOLS_MISSING=""
-TOOLS_FAILED=""
-
-# Vérification outils critiques
-for tool in ufw fail2ban nano rsyslog cron curl wget git python3 pip3; do
-    if ! command -v $tool >/dev/null 2>&1; then
-        TOOLS_MISSING="${TOOLS_MISSING}$tool "
-    fi
-done
-
-if [ ! -z "$TOOLS_MISSING" ]; then
-    warning "Outils manquants détectés : $TOOLS_MISSING"
-    log "Tentative de réinstallation des outils manquants..."
-    
-    # Tentative de réinstallation individuelle des outils manquants
-    for tool in $TOOLS_MISSING; do
-        log "Réinstallation de $tool..."
-        if DEBIAN_FRONTEND=noninteractive apt install -y $tool -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"; then
-            log "✅ $tool installé avec succès"
-        else
-            warning "❌ Échec installation de $tool"
-            TOOLS_FAILED="${TOOLS_FAILED}$tool "
-        fi
-    done
-    
-    # Vérification finale
-    FINAL_MISSING=""
-    for tool in ufw fail2ban nano rsyslog cron curl wget git python3 pip3; do
-        if ! command -v $tool >/dev/null 2>&1; then
-            FINAL_MISSING="${FINAL_MISSING}$tool "
-        fi
-    done
-    
-    if [ ! -z "$FINAL_MISSING" ]; then
-        warning "Outils toujours manquants : $FINAL_MISSING"
-        warning "L'installation continue mais certaines fonctionnalités peuvent être limitées"
-        INSTALLATION_WARNINGS="${INSTALLATION_WARNINGS}\n⚠️ Outils manquants : $FINAL_MISSING"
-    else
-        log "✅ Tous les outils manquants ont été installés avec succès"
-    fi
-else
-    log "✅ Tous les outils système installés et vérifiés"
-fi
-
 # Installation wkhtmltopdf (version officielle pour meilleure compatibilité)
 log "Installation de wkhtmltopdf (génération PDF Odoo)..."
 WKHTMLTOPDF_VERSION="0.12.6.1-2"
@@ -256,22 +207,6 @@ if [ -f "wkhtmltox.deb" ]; then
 else
     DEBIAN_FRONTEND=noninteractive apt install -y wkhtmltopdf
     log "✅ wkhtmltopdf installé depuis apt"
-fi
-
-# Vérification wkhtmltopdf
-log "Vérification de wkhtmltopdf..."
-if command -v wkhtmltopdf >/dev/null 2>&1; then
-    WKHTMLTOPDF_VERSION_CHECK=$(wkhtmltopdf --version 2>/dev/null | head -n1 || echo "Version inconnue")
-    log "✅ wkhtmltopdf fonctionnel : $WKHTMLTOPDF_VERSION_CHECK"
-else
-    warning "wkhtmltopdf non installé ou non fonctionnel"
-    log "Tentative d'installation alternative de wkhtmltopdf..."
-    if DEBIAN_FRONTEND=noninteractive apt install -y wkhtmltopdf; then
-        log "✅ wkhtmltopdf installé via apt"
-    else
-        warning "❌ Échec installation wkhtmltopdf"
-        INSTALLATION_WARNINGS="${INSTALLATION_WARNINGS}\n⚠️ wkhtmltopdf non installé - génération PDF limitée"
-    fi
 fi
 
 # Installation des dépendances Python pour modules Odoo avancés
@@ -294,22 +229,6 @@ pip3 install \
     openpyxl \
     python-dateutil \
     pytz || warning "Certaines dépendances Python ont échoué (continuer...)"
-
-# NOUVEAU : Vérification dépendances Python critiques
-log "Vérification des dépendances Python critiques..."
-PYTHON_MISSING=""
-
-for package in dropbox boto3 paramiko requests cryptography pillow; do
-    if ! python3 -c "import $package" >/dev/null 2>&1; then
-        PYTHON_MISSING="${PYTHON_MISSING}$package "
-    fi
-done
-
-if [ ! -z "$PYTHON_MISSING" ]; then
-    warning "Dépendances Python manquantes : $PYTHON_MISSING (modules Odoo avancés peuvent ne pas fonctionner)"
-else
-    log "✅ Toutes les dépendances Python critiques installées"
-fi
 
 log "✅ Outils système installés avec succès"
 
@@ -384,123 +303,23 @@ log "Installation de PostgreSQL..."
 DEBIAN_FRONTEND=noninteractive apt install -y postgresql postgresql-contrib -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" || error "Échec installation PostgreSQL"
 systemctl enable postgresql
 
-# NOUVEAU : Vérification PostgreSQL
-log "Vérification de l'installation PostgreSQL..."
-if ! systemctl is-active --quiet postgresql; then
-    log "PostgreSQL non démarré, tentative de démarrage..."
-    systemctl start postgresql
-    sleep 5
-fi
-
-if ! systemctl is-active --quiet postgresql; then
-    warning "PostgreSQL ne démarre pas correctement"
-    log "Tentative de réinstallation PostgreSQL..."
-    DEBIAN_FRONTEND=noninteractive apt install -y --reinstall postgresql postgresql-contrib
-    systemctl enable postgresql
-    systemctl start postgresql
-    sleep 10
-    
-    if ! systemctl is-active --quiet postgresql; then
-        warning "❌ PostgreSQL ne fonctionne toujours pas"
-        INSTALLATION_WARNINGS="${INSTALLATION_WARNINGS}\n⚠️ PostgreSQL non fonctionnel - installation Odoo impossible"
-        # Ne pas arrêter le script, continuer avec les autres composants
-    else
-        log "✅ PostgreSQL démarré après réinstallation"
-    fi
-else
-    log "✅ PostgreSQL fonctionnel"
-fi
-
-if ! command -v psql >/dev/null 2>&1; then
-    warning "psql (client PostgreSQL) non installé"
-    INSTALLATION_WARNINGS="${INSTALLATION_WARNINGS}\n⚠️ Client PostgreSQL manquant"
-else
-    log "✅ Client PostgreSQL disponible"
-fi
-
-# Configuration des utilisateurs PostgreSQL
+# Configuration des utilisateurs
 log "Configuration des utilisateurs PostgreSQL..."
-if systemctl is-active --quiet postgresql; then
-    sudo -u postgres psql << EOF
+sudo -u postgres psql << EOF
 ALTER USER postgres PASSWORD '$POSTGRES_ADMIN_PASS';
 CREATE USER "$ODOO_USER" WITH CREATEDB;
 ALTER USER "$ODOO_USER" PASSWORD '$POSTGRES_USER_PASS';
 \q
 EOF
 
-    # NOUVEAU : Vérification création utilisateurs
-    log "Vérification des utilisateurs PostgreSQL..."
-    if ! sudo -u postgres psql -t -c "\du" | grep -q "$ODOO_USER"; then
-        warning "Utilisateur $ODOO_USER non créé dans PostgreSQL"
-        log "Tentative de création manuelle de l'utilisateur..."
-        sudo -u postgres createuser --createdb "$ODOO_USER" 2>/dev/null || true
-        sudo -u postgres psql -c "ALTER USER \"$ODOO_USER\" PASSWORD '$POSTGRES_USER_PASS';" 2>/dev/null || true
-        
-        if sudo -u postgres psql -t -c "\du" | grep -q "$ODOO_USER"; then
-            log "✅ Utilisateur $ODOO_USER créé avec succès"
-        else
-            warning "❌ Impossible de créer l'utilisateur $ODOO_USER"
-            INSTALLATION_WARNINGS="${INSTALLATION_WARNINGS}\n⚠️ Utilisateur PostgreSQL $ODOO_USER non créé"
-        fi
-    else
-        log "✅ Utilisateurs PostgreSQL configurés et vérifiés"
-    fi
-else
-    warning "PostgreSQL non actif, impossible de configurer les utilisateurs"
-    INSTALLATION_WARNINGS="${INSTALLATION_WARNINGS}\n⚠️ Configuration utilisateurs PostgreSQL échouée"
-fi
-
 # Configuration port personnalisé
 log "Configuration du port PostgreSQL: $POSTGRES_PORT"
 sed -i "s/#port = 5432/port = $POSTGRES_PORT/" /etc/postgresql/*/main/postgresql.conf
 sed -i "s/#listen_addresses = 'localhost'/listen_addresses = 'localhost'/" /etc/postgresql/*/main/postgresql.conf
 
-# Configuration port personnalisé
-log "Configuration du port PostgreSQL: $POSTGRES_PORT"
-sed -i "s/#port = 5432/port = $POSTGRES_PORT/" /etc/postgresql/*/main/postgresql.conf
-sed -i "s/#listen_addresses = 'localhost'/listen_addresses = 'localhost'/" /etc/postgresql/*/main/postgresql.conf
+systemctl restart postgresql || error "Échec redémarrage PostgreSQL"
 
-if systemctl is-active --quiet postgresql; then
-    systemctl restart postgresql || warning "Échec redémarrage PostgreSQL"
-    
-    # NOUVEAU : Vérification port PostgreSQL
-    log "Vérification du port PostgreSQL..."
-    sleep 5
-    if ! ss -tlnp | grep -q ":$POSTGRES_PORT"; then
-        warning "PostgreSQL n'écoute pas sur le port $POSTGRES_PORT"
-        log "Tentative de correction de la configuration..."
-        
-        # Vérifier si la configuration a bien été appliquée
-        CURRENT_PORT=$(grep "^port" /etc/postgresql/*/main/postgresql.conf | cut -d'=' -f2 | tr -d ' ')
-        if [ "$CURRENT_PORT" != "$POSTGRES_PORT" ]; then
-            # Essayer une approche différente
-            echo "port = $POSTGRES_PORT" >> /etc/postgresql/*/main/postgresql.conf
-            systemctl restart postgresql
-            sleep 5
-        fi
-        
-        if ! ss -tlnp | grep -q ":$POSTGRES_PORT"; then
-            warning "❌ PostgreSQL n'écoute toujours pas sur le port $POSTGRES_PORT"
-            INSTALLATION_WARNINGS="${INSTALLATION_WARNINGS}\n⚠️ PostgreSQL port $POSTGRES_PORT non configuré"
-        else
-            log "✅ PostgreSQL maintenant sur le port $POSTGRES_PORT"
-        fi
-    else
-        log "✅ PostgreSQL configuré sur le port $POSTGRES_PORT"
-    fi
-
-    # Test connexion avec nouvel utilisateur
-    if systemctl is-active --quiet postgresql && sudo -u postgres psql -t -c "\du" | grep -q "$ODOO_USER"; then
-        if ! PGPASSWORD="$POSTGRES_USER_PASS" psql -h localhost -p $POSTGRES_PORT -U $ODOO_USER -d postgres -c "\q" >/dev/null 2>&1; then
-            warning "Impossible de se connecter à PostgreSQL avec l'utilisateur $ODOO_USER"
-            INSTALLATION_WARNINGS="${INSTALLATION_WARNINGS}\n⚠️ Connexion PostgreSQL utilisateur $ODOO_USER échouée"
-        else
-            log "✅ Connexion PostgreSQL avec $ODOO_USER fonctionnelle"
-        fi
-    fi
-else
-    warning "PostgreSQL non actif, configuration du port ignorée"
-fi
+log "✅ PostgreSQL configuré sur le port $POSTGRES_PORT"
 
 #################################################################################
 # ÉTAPE 4: INSTALLATION NGINX + ODOO + WEBMIN
@@ -546,23 +365,6 @@ rm -f /etc/nginx/sites-enabled/default
 
 nginx -t && systemctl restart nginx || error "Échec configuration Nginx"
 
-# NOUVEAU : Vérification Nginx
-log "Vérification de l'installation Nginx..."
-if ! systemctl is-active --quiet nginx; then
-    error "Nginx ne démarre pas correctement"
-fi
-
-if ! ss -tlnp | grep -q ":80"; then
-    error "Nginx n'écoute pas sur le port 80"
-fi
-
-# Test reverse proxy
-if ! curl -s -I http://localhost >/dev/null 2>&1; then
-    warning "Le reverse proxy Nginx vers Odoo pourrait avoir des problèmes"
-fi
-
-log "✅ Nginx installé et configuré avec succès"
-
 # Installation Odoo avec version personnalisée
 log "Installation d'Odoo $ODOO_VERSION..."
 wget -O - https://nightly.odoo.com/odoo.key | gpg --dearmor -o /usr/share/keyrings/odoo-archive-keyring.gpg
@@ -590,7 +392,7 @@ db_password = $POSTGRES_USER_PASS
 # Mot de passe master Odoo
 admin_passwd = $ODOO_MASTER_PASS
 
-# Database Manager - OUVERT pour création initiale
+# Sécurité renforcée
 list_db = True
 db_filter = ^.*$
 proxy_mode = True
@@ -668,20 +470,6 @@ sed -i "s/port=10000/port=$WEBMIN_PORT/" /etc/webmin/miniserv.conf
 sed -i "s/listen=10000/listen=$WEBMIN_PORT/" /etc/webmin/miniserv.conf
 
 systemctl restart webmin || error "Échec redémarrage Webmin"
-
-# NOUVEAU : Vérification Webmin
-log "Vérification de l'installation Webmin..."
-sleep 5
-
-if ! systemctl is-active --quiet webmin; then
-    error "Webmin ne démarre pas correctement"
-fi
-
-if ! ss -tlnp | grep -q ":$WEBMIN_PORT"; then
-    error "Webmin n'écoute pas sur le port $WEBMIN_PORT"
-fi
-
-log "✅ Webmin installé et configuré sur le port $WEBMIN_PORT"
 
 log "✅ Nginx, Odoo et Webmin installés et configurés"
 
@@ -782,179 +570,6 @@ chmod +x /opt/backup/backup-odoo.sh
 
 # Cron automatique
 (crontab -l 2>/dev/null; echo "0 2 * * * /opt/backup/backup-odoo.sh >> /var/log/backup.log 2>&1") | crontab -
-
-# NOUVEAU : Création du script de sécurisation post-création base de données
-log "Création du script de sécurisation post-création base de données..."
-
-cat > /opt/backup/secure-after-db-creation.sh << 'EOFSECURE'
-#!/bin/bash
-
-#################################################################################
-# SCRIPT DE SÉCURISATION POST-CRÉATION BASE DE DONNÉES ODOO
-# Ce script doit être exécuté APRÈS avoir créé votre base de données Odoo
-# Il ferme l'accès au database manager et applique les sécurisations finales
-#################################################################################
-
-# Couleurs pour les logs
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-log() {
-    echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')] $1${NC}"
-}
-
-error() {
-    echo -e "${RED}[ERREUR] $1${NC}"
-    exit 1
-}
-
-warning() {
-    echo -e "${YELLOW}[ATTENTION] $1${NC}"
-}
-
-echo ""
-echo "╔══════════════════════════════════════════════════════════════════╗"
-echo "║           SÉCURISATION POST-CRÉATION BASE DE DONNÉES            ║"
-echo "╚══════════════════════════════════════════════════════════════════╝"
-echo ""
-
-# Vérification que le script est exécuté en tant que root
-if [[ $EUID -ne 0 ]]; then
-   error "Ce script doit être exécuté en tant que root (sudo)"
-fi
-
-# Vérification que Odoo fonctionne
-if ! systemctl is-active --quiet odoo; then
-    error "Odoo n'est pas en fonctionnement. Démarrez-le d'abord avec : sudo systemctl start odoo"
-fi
-
-# Confirmation avant sécurisation
-echo "⚠️  ATTENTION : Ce script va :"
-echo "   1. Fermer l'accès au Database Manager d'Odoo"
-echo "   2. Appliquer la configuration sécurisée finale"
-echo "   3. Redémarrer Odoo pour appliquer les changements"
-echo ""
-echo "❓ Assurez-vous d'avoir créé votre base de données Odoo AVANT de continuer !"
-echo ""
-read -p "Continuer avec la sécurisation ? (y/N): " -n 1 -r
-echo ""
-
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "Sécurisation annulée."
-    exit 0
-fi
-
-echo ""
-log "Démarrage de la sécurisation..."
-
-# Sauvegarde de la configuration actuelle
-log "Sauvegarde de la configuration actuelle..."
-cp /opt/odoo-secure/config/odoo.conf /opt/odoo-secure/config/odoo.conf.backup-$(date +%Y%m%d_%H%M%S)
-
-# Modification de la configuration pour fermer le database manager
-log "Fermeture de l'accès au Database Manager..."
-sed -i 's/list_db = True/list_db = False/' /opt/odoo-secure/config/odoo.conf
-
-# Vérification de la modification
-if grep -q "list_db = False" /opt/odoo-secure/config/odoo.conf; then
-    log "✅ Database Manager désactivé dans la configuration"
-else
-    error "Échec de la modification de la configuration"
-fi
-
-# Ajout de sécurisations supplémentaires
-log "Application des sécurisations supplémentaires..."
-
-# Ajout/modification des paramètres de sécurité dans odoo.conf
-cat >> /opt/odoo-secure/config/odoo.conf << EOF
-
-# Sécurisations ajoutées automatiquement après création DB
-dbfilter_from_header = False
-db_template = template0
-EOF
-
-# Test de la configuration
-log "Test de la configuration Odoo..."
-if ! sudo -u odoo odoo --config=/opt/odoo-secure/config/odoo.conf --test-enable --stop-after-init --logfile=/tmp/odoo-test-secure.log >/dev/null 2>&1; then
-    error "Configuration Odoo invalide. Vérifiez /tmp/odoo-test-secure.log"
-fi
-
-log "✅ Configuration Odoo validée"
-
-# Redémarrage d'Odoo pour appliquer les changements
-log "Redémarrage d'Odoo pour appliquer les sécurisations..."
-systemctl restart odoo
-
-# Attendre le redémarrage
-sleep 10
-
-# Vérification que Odoo redémarre correctement
-for i in {1..3}; do
-    if systemctl is-active --quiet odoo; then
-        log "✅ Odoo redémarré avec succès"
-        break
-    else
-        warning "Tentative $i/3 : Odoo non démarré, nouvelle tentative..."
-        systemctl restart odoo
-        sleep 10
-    fi
-done
-
-if ! systemctl is-active --quiet odoo; then
-    error "Odoo ne redémarre pas correctement après sécurisation"
-fi
-
-# Test d'accès pour vérifier que le database manager est fermé
-log "Vérification que le Database Manager est fermé..."
-ODOO_PORT=$(grep "xmlrpc_port" /opt/odoo-secure/config/odoo.conf | cut -d' ' -f3)
-
-# Test avec curl pour vérifier que /web/database est fermé
-if curl -s "http://localhost:$ODOO_PORT/web/database" | grep -q "database manager has been disabled"; then
-    log "✅ Database Manager correctement fermé"
-else
-    warning "Le Database Manager pourrait encore être accessible"
-fi
-
-# Mise à jour du cahier des charges avec le statut sécurisé
-log "Mise à jour de la documentation..."
-if [ -f /var/www/html/cahier-des-charges-final.md ]; then
-    sed -i 's/Database Manager - OUVERT pour création initiale/Database Manager - FERMÉ (sécurisé)/' /var/www/html/cahier-des-charges-final.md
-    sed -i 's/list_db = True/list_db = False/' /var/www/html/cahier-des-charges-final.md
-fi
-
-echo ""
-echo "╔══════════════════════════════════════════════════════════════════╗"
-echo "║                  SÉCURISATION TERMINÉE !                        ║"
-echo "╚══════════════════════════════════════════════════════════════════╝"
-echo ""
-echo "✅ Sécurisations appliquées avec succès :"
-echo "   🔒 Database Manager fermé (list_db = False)"
-echo "   🔒 Paramètres de sécurité supplémentaires ajoutés"
-echo "   🔄 Odoo redémarré avec la nouvelle configuration"
-echo ""
-echo "🌐 Votre serveur Odoo est maintenant sécurisé pour la production !"
-echo ""
-echo "📋 URLs d'accès :"
-echo "   🏢 Odoo : http://$(hostname -I | awk '{print $1}')"
-echo "   ⚙️ Webmin : https://$(hostname -I | awk '{print $1}'):$(grep "port=" /etc/webmin/miniserv.conf | cut -d'=' -f2)"
-echo ""
-echo "📝 Configuration sauvegardée dans :"
-echo "   /opt/odoo-secure/config/odoo.conf.backup-$(date +%Y%m%d_%H%M%S)"
-echo ""
-
-log "Script de sécurisation terminé avec succès"
-EOFSECURE
-
-# Permissions d'exécution pour le script de sécurisation
-chmod +x /opt/backup/secure-after-db-creation.sh
-chown root:root /opt/backup/secure-after-db-creation.sh
-
-# Créer lien web pour téléchargement facile du script
-ln -sf /opt/backup/secure-after-db-creation.sh /var/www/html/secure-after-db-creation.sh
-
-log "✅ Script de sécurisation post-création DB créé"
 
 # Création documentation d'installation sur le serveur
 log "Création de la documentation d'installation..."
@@ -1388,9 +1003,46 @@ sed -i "s/DISK_USAGE_VALUE/$DISK_USAGE/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$
 # Créer lien web pour téléchargement du cahier des charges
 ln -sf /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md /var/www/html/cahier-des-charges-final.md
 
+# Création du script de sécurisation post-installation
+log "Création du script de sécurisation post-installation..."
+cat > /opt/backup/securiser-odoo.sh << 'EOFSECURE'
+#!/bin/bash
+# Script de sécurisation post-installation Odoo
+# À exécuter APRÈS création de la base de données principale
+
+echo "🔒 SÉCURISATION POST-INSTALLATION ODOO"
+echo ""
+echo "⚠️  Ce script va fermer l'interface de gestion des bases de données"
+echo "    Exécutez-le APRÈS avoir créé votre base de données principale"
+echo ""
+
+read -p "Continuer ? (y/N): " -n 1 -r
+echo ""
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    exit 0
+fi
+
+# Désactiver interface de gestion DB
+sudo sed -i 's/list_db = True/list_db = False/' /opt/odoo-secure/config/odoo.conf
+
+# Redémarrer Odoo
+sudo systemctl restart odoo
+
+echo "✅ Interface de gestion des bases de données fermée"
+echo "✅ Odoo redémarré et sécurisé"
+echo ""
+echo "🌐 Accès final : http://$(hostname -I | awk '{print $1}')"
+EOFSECURE
+
+chmod +x /opt/backup/securiser-odoo.sh
+chown $ADMIN_USER:$ADMIN_USER /opt/backup/securiser-odoo.sh
+
 # Documentation accessible via web
 log "Documentation accessible via téléchargement web..."
 ln -sf /opt/backup/GUIDE-INSTALLATION-SystemERP.md /var/www/html/guide-installation.md
+
+# Script de sécurisation accessible via web
+ln -sf /opt/backup/securiser-odoo.sh /var/www/html/securiser-odoo.sh
 
 # NOUVELLE FONCTIONNALITÉ : Vérification et désactivation automatique des mots de passe SSH
 log "Vérification des clés SSH et sécurisation automatique..."
@@ -1495,7 +1147,7 @@ echo "📁 DOCUMENTATION SAUVEGARDÉE :"
 echo "   📋 Cahier des charges final : /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md"
 echo "   🌐 Téléchargement direct     : http://$CURRENT_IP/cahier-des-charges-final.md"
 echo "   📖 Guide installation       : http://$CURRENT_IP/guide-installation.md"
-echo "   🔒 Script sécurisation DB   : http://$CURRENT_IP/secure-after-db-creation.sh"
+echo "   🔒 Script sécurisation      : /opt/backup/securiser-odoo.sh"
 echo "   💾 Sauvegarde locale        : Disponible dans /opt/backup/"
 echo ""
 echo "🔐 INFORMATIONS IMPORTANTES SAUVEGARDÉES :"
@@ -1508,28 +1160,27 @@ echo "   📦 Version Odoo             : $ODOO_VERSION"
 echo "   🌐 IP Serveur               : $CURRENT_IP"
 echo "   🔑 Mots de passe            : Inclus dans le cahier des charges"
 echo ""
-echo "⚠️  ÉTAPES POST-INSTALLATION IMPORTANTES :"
-echo ""
-echo "📋 1. CRÉATION BASE DE DONNÉES ODOO :"
-echo "   🌐 Accédez à : http://$CURRENT_IP/web/database"
-echo "   🔑 Master Password : $ODOO_MASTER_PASS"
-echo "   📝 Créez votre base de données Odoo"
-echo ""
-echo "🔒 2. SÉCURISATION APRÈS CRÉATION DB :"
-echo "   📥 Téléchargez : wget http://$CURRENT_IP/secure-after-db-creation.sh"
-echo "   🔧 Exécutez : sudo bash secure-after-db-creation.sh"
-echo "   ✅ Ceci fermera l'accès au Database Manager"
+echo "⚠️  IMPORTANT - GESTION BASE DE DONNÉES :"
+echo "   🔓 Interface de gestion des bases : OUVERTE (temporaire)"
+echo "   🎯 Créez votre base principale puis exécutez : /opt/backup/securiser-odoo.sh"
+echo "   🔒 Ceci fermera l'interface pour sécuriser la production"
 echo ""
 echo "📝 ÉTAPES SUIVANTES:"
 echo "   1. Testez l'accès Odoo: http://$CURRENT_IP"
-echo "   2. Testez l'accès Webmin: https://$CURRENT_IP:$WEBMIN_PORT"
-echo "   3. Téléchargez la documentation: http://$CURRENT_IP/guide-installation.md"
+echo "   2. Créez votre base de données principale:"
+echo "      -> Allez sur: http://$CURRENT_IP"
+echo "      -> Cliquez 'Manage Databases' ou 'Gérer les bases de données'"
+echo "      -> Créez votre base avec vos paramètres"
+echo "   3. APRÈS création de la base, sécurisez l'installation:"
+echo "      -> Exécutez: /opt/backup/securiser-odoo.sh"
+echo "      -> Ceci fermera l'interface de gestion des bases"
+echo "   4. Testez l'accès Webmin: https://$CURRENT_IP:$WEBMIN_PORT"
 if [ "$SSH_PASSWORD_DISABLED" = true ]; then
-    echo "   4. ✅ SSH sécurisé automatiquement (clés uniquement)"
-    echo "   5. Placez vos addons dans /opt/odoo-secure/addons-custom/"
+    echo "   5. ✅ SSH sécurisé automatiquement (clés uniquement)"
+    echo "   6. Placez vos addons dans /opt/odoo-secure/addons-custom/"
 else
-    echo "   4. Configurez vos clés SSH PuTTY (voir documentation)"
-    echo "   5. Relancez ce script pour désactivation automatique des mots de passe"
+    echo "   5. Configurez vos clés SSH (voir documentation)"
+    echo "   6. Relancez ce script pour sécurisation SSH automatique"
 fi
 echo ""
 echo "📊 ÉTAT DES SERVICES:"
