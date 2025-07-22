@@ -301,7 +301,7 @@ sudo ./install-ubuntu-odoo.sh
 
 ### **🔗 Accès Utilisateur**
 ```
-🏢 Odoo ERP          : http://IP_SERVEUR
+🏢 Odoo ERP          : http://IP_SERVEUR via User admin par default : admin-sys-erp
 🏢 Odoo Direct       : http://IP_SERVEUR:PORT_ODOO
 ⚙️ Webmin Admin      : https://IP_SERVEUR:PORT_WEBMIN
 🔑 SSH               : IP_SERVEUR:PORT_SSH
@@ -657,6 +657,16 @@ sudo systemctl list-units --failed
 - ✅ **Support facilité** : Toutes infos clients centralisées
 
 ---
+
+✅ Ajout de systemerp.local sur le poste Windows – Résultat : OK
+Ajout manuel de l’entrée DNS locale via modification du fichier hosts :
+
+$hostsContent = Get-Content "C:\Windows\System32\drivers\etc\hosts"
+$hostsContent += "192.168.1.190 systemerp.local"
+Set-Content -Path "C:\Windows\System32\drivers\etc\hosts" -Value $hostsContent -Encoding ASCII -Force
+
+Puis vidage du cache DNS :
+ipconfig /flushdns
 
 **🚀 Installation automatisée développée pour la production critique**  
 **🔒 Sécurité maximale + Rapidité d'installation optimisée**  
