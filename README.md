@@ -8,6 +8,7 @@ Script d'installation automatique pour **Ubuntu Server 22.04** avec **Odoo (16.0
 ```bash
 # Sur Ubuntu Server fraîchement installé
 sudo apt update
+sudo apt upgrade
 sudo apt install -y nano wget curl  # Outils de base requis
 ```
 
