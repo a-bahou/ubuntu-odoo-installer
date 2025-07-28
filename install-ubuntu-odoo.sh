@@ -221,6 +221,8 @@ fi
 # Installation des dépendances Python pour modules Odoo avancés
 log "Installation des dépendances Python pour modules Odoo..."
 pip3 install --upgrade pip
+
+# Installation des dépendances de base
 pip3 install \
     dropbox \
     pyncclient \
@@ -230,9 +232,6 @@ pip3 install \
     requests \
     cryptography \
     pillow \
-    lxml \
-    'lxml[html_clean]' \
-    lxml_html_clean \
     reportlab \
     qrcode[pil] \
     xlsxwriter \
@@ -240,6 +239,22 @@ pip3 install \
     openpyxl \
     python-dateutil \
     pytz || warning "Certaines dépendances Python ont échoué (continuer...)"
+
+# Installation lxml avec version compatible selon Odoo
+log "Installation de lxml avec version compatible Odoo $ODOO_VERSION..."
+if [[ "$ODOO_VERSION" == "14.0" ]] || [[ "$ODOO_VERSION" == "15.0" ]]; then
+    # Versions compatibles pour Odoo 14.0/15.0
+    pip3 install lxml==4.9.2
+    # Pas de lxml_html_clean pour éviter les conflits
+    log "✅ lxml 4.9.2 installé (compatible Odoo $ODOO_VERSION)"
+else
+    # Versions récentes pour Odoo 16.0+
+    pip3 install lxml 'lxml[html_clean]' lxml_html_clean || {
+        warning "Échec installation lxml avec html_clean, installation lxml seul..."
+        pip3 install lxml
+    }
+    log "✅ lxml avec html_clean installé (compatible Odoo $ODOO_VERSION)"
+fi
 
 log "✅ Outils système et dépendances Python installés avec succès"
 
@@ -499,15 +514,27 @@ chmod 640 /opt/odoo-secure/config/odoo.conf
 ln -sf /opt/odoo-secure/config/odoo.conf /etc/odoo/odoo.conf
 chown odoo:odoo /etc/odoo/odoo.conf
 
-# Test configuration Odoo avant démarrage
+# Test configuration Odoo avant démarrage avec correction lxml si nécessaire
 log "Test de la configuration Odoo..."
 if sudo -u odoo odoo --config=/etc/odoo/odoo.conf --test-enable --stop-after-init --logfile=/tmp/odoo-test.log 2>/dev/null; then
     log "✅ Configuration Odoo valide"
 else
-    warning "⚠️ Test configuration Odoo en cours, vérification..."
-    # Afficher seulement les erreurs critiques s'il y en a
+    warning "⚠️ Test configuration Odoo en cours, vérification des erreurs..."
+    
+    # Vérification spécifique de l'erreur lxml pour Odoo 14.0/15.0
+    if [ -f "/tmp/odoo-test.log" ] && grep -q "lxml.html.clean.*defs" /tmp/odoo-test.log; then
+        log "🔧 Détection erreur lxml.html.clean - Correction automatique..."
+        
+        # Correction automatique pour Odoo 14.0/15.0
+        pip3 uninstall -y lxml_html_clean 'lxml[html_clean]' 2>/dev/null || true
+        pip3 install lxml==4.9.2 --force-reinstall
+        
+        log "✅ Correction lxml appliquée pour Odoo $ODOO_VERSION"
+    fi
+    
+    # Afficher seulement les erreurs critiques restantes
     if [ -f "/tmp/odoo-test.log" ]; then
-        grep -i "error\|critical\|fatal" /tmp/odoo-test.log | head -5 || true
+        grep -i "error\|critical\|fatal" /tmp/odoo-test.log | grep -v "lxml.html.clean" | head -5 || true
     fi
 fi
 
