@@ -80,7 +80,7 @@ POSTGRES_PORT=${POSTGRES_PORT:-$DEFAULT_POSTGRES_PORT}
 # Configuration version Odoo
 echo ""
 echo "📦 VERSION ODOO :"
-echo "   Versions disponibles : 16.0, 17.0, 18.0"
+echo "   Versions disponibles : 14.0, 15.0, 16.0, 17.0, 18.0"
 read -p "Version Odoo [$DEFAULT_ODOO_VERSION]: " ODOO_VERSION
 ODOO_VERSION=${ODOO_VERSION:-$DEFAULT_ODOO_VERSION}
 
