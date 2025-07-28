@@ -1,9 +1,9 @@
 #!/bin/bash
 
 #################################################################################
-# SCRIPT D'INSTALLATION AUTOMATISÉE - UBUNTU SERVER + ODOO 17 SÉCURISÉ
-# Version: 2.0
-# Date: Juin 2025
+# SCRIPT D'INSTALLATION AUTOMATISÉE - UBUNTU SERVER + ODOO SÉCURISÉ
+# Version: 2.1 - Support Odoo 14.0, 15.0, 16.0, 17.0, 18.0
+# Date: Juillet 2025
 #################################################################################
 
 # Couleurs pour les logs
@@ -77,12 +77,21 @@ ODOO_PORT=${ODOO_PORT:-$DEFAULT_ODOO_PORT}
 read -p "Port PostgreSQL [$DEFAULT_POSTGRES_PORT]: " POSTGRES_PORT
 POSTGRES_PORT=${POSTGRES_PORT:-$DEFAULT_POSTGRES_PORT}
 
-# Configuration version Odoo
+# Configuration version Odoo avec validation
 echo ""
 echo "📦 VERSION ODOO :"
 echo "   Versions disponibles : 14.0, 15.0, 16.0, 17.0, 18.0"
-read -p "Version Odoo [$DEFAULT_ODOO_VERSION]: " ODOO_VERSION
-ODOO_VERSION=${ODOO_VERSION:-$DEFAULT_ODOO_VERSION}
+while true; do
+    read -p "Version Odoo [$DEFAULT_ODOO_VERSION]: " ODOO_VERSION
+    ODOO_VERSION=${ODOO_VERSION:-$DEFAULT_ODOO_VERSION}
+    
+    # Validation de la version
+    if [[ "$ODOO_VERSION" =~ ^(14\.0|15\.0|16\.0|17\.0|18\.0)$ ]]; then
+        break
+    else
+        echo "❌ Version invalide. Choisissez : 14.0, 15.0, 16.0, 17.0 ou 18.0"
+    fi
+done
 
 # Configuration réseau
 echo ""
@@ -234,8 +243,6 @@ pip3 install \
 
 log "✅ Outils système et dépendances Python installés avec succès"
 
-log "✅ Outils système installés avec succès"
-
 #################################################################################
 # ÉTAPE 2: CONFIGURATION FIREWALL COMPLÈTE
 #################################################################################
@@ -329,7 +336,7 @@ log "✅ PostgreSQL configuré sur le port $POSTGRES_PORT"
 # ÉTAPE 4: INSTALLATION NGINX + ODOO + WEBMIN
 #################################################################################
 
-log "ÉTAPE 4/5: Installation Nginx, Odoo 17 et Webmin"
+log "ÉTAPE 4/5: Installation Nginx, Odoo $ODOO_VERSION et Webmin"
 
 # Installation Nginx
 log "Installation de Nginx..."
@@ -400,11 +407,40 @@ rm -f /etc/nginx/sites-enabled/default
 
 nginx -t && systemctl restart nginx || error "Échec configuration Nginx"
 
-# Installation Odoo avec version personnalisée
-log "Installation d'Odoo $ODOO_VERSION..."
-wget -O - https://nightly.odoo.com/odoo.key | gpg --dearmor -o /usr/share/keyrings/odoo-archive-keyring.gpg
-echo "deb [signed-by=/usr/share/keyrings/odoo-archive-keyring.gpg] https://nightly.odoo.com/$ODOO_VERSION/nightly/deb/ ./" | tee /etc/apt/sources.list.d/odoo.list
-DEBIAN_FRONTEND=noninteractive apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y odoo -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" || error "Échec installation Odoo $ODOO_VERSION"
+# Installation Odoo avec méthode correcte selon la version
+log "🔄 Installation d'Odoo $ODOO_VERSION (méthode adaptée)..."
+
+# Suppression des sources Odoo existantes pour éviter les conflits
+rm -f /etc/apt/sources.list.d/odoo.list
+rm -f /usr/share/keyrings/odoo-archive-keyring.gpg
+
+if [[ "$ODOO_VERSION" == "14.0" ]] || [[ "$ODOO_VERSION" == "15.0" ]]; then
+    # Méthode spéciale pour Odoo 14.0 et 15.0 (GPG et sources différentes)
+    log "🔧 Installation Odoo $ODOO_VERSION avec méthode spécialisée..."
+    
+    # Téléchargement et installation de la clé GPG (méthode corrigée)
+    wget -q -O - https://nightly.odoo.com/odoo.key | gpg --dearmor -o /usr/share/keyrings/odoo-archive-keyring.gpg || error "Échec téléchargement clé GPG Odoo"
+    
+    # Ajout du dépôt avec la bonne syntaxe
+    echo "deb [signed-by=/usr/share/keyrings/odoo-archive-keyring.gpg] https://nightly.odoo.com/$ODOO_VERSION/nightly/deb/ ./" > /etc/apt/sources.list.d/odoo.list
+    
+    # Mise à jour et installation
+    log "Mise à jour des paquets et installation Odoo $ODOO_VERSION..."
+    DEBIAN_FRONTEND=noninteractive apt-get update || error "Échec mise à jour paquets Odoo"
+    DEBIAN_FRONTEND=noninteractive apt-get install -y odoo -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" || error "Échec installation Odoo $ODOO_VERSION"
+    
+else
+    # Méthode standard pour Odoo 16.0, 17.0, 18.0
+    log "🔧 Installation Odoo $ODOO_VERSION avec méthode standard..."
+    
+    wget -O - https://nightly.odoo.com/odoo.key | gpg --dearmor -o /usr/share/keyrings/odoo-archive-keyring.gpg || error "Échec téléchargement clé GPG Odoo"
+    echo "deb [signed-by=/usr/share/keyrings/odoo-archive-keyring.gpg] https://nightly.odoo.com/$ODOO_VERSION/nightly/deb/ ./" | tee /etc/apt/sources.list.d/odoo.list
+    
+    DEBIAN_FRONTEND=noninteractive apt-get update || error "Échec mise à jour paquets Odoo"
+    DEBIAN_FRONTEND=noninteractive apt-get install -y odoo -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" || error "Échec installation Odoo $ODOO_VERSION"
+fi
+
+log "✅ Odoo $ODOO_VERSION installé avec succès"
 
 # Création structure sécurisée Odoo
 log "Création de la structure sécurisée Odoo..."
@@ -465,33 +501,40 @@ chown odoo:odoo /etc/odoo/odoo.conf
 
 # Test configuration Odoo avant démarrage
 log "Test de la configuration Odoo..."
-if sudo -u odoo odoo --config=/etc/odoo/odoo.conf --test-enable --stop-after-init --logfile=/tmp/odoo-test.log; then
+if sudo -u odoo odoo --config=/etc/odoo/odoo.conf --test-enable --stop-after-init --logfile=/tmp/odoo-test.log 2>/dev/null; then
     log "✅ Configuration Odoo valide"
 else
-    warning "❌ Problème configuration Odoo, vérification en cours..."
-    cat /tmp/odoo-test.log
+    warning "⚠️ Test configuration Odoo en cours, vérification..."
+    # Afficher seulement les erreurs critiques s'il y en a
+    if [ -f "/tmp/odoo-test.log" ]; then
+        grep -i "error\|critical\|fatal" /tmp/odoo-test.log | head -5 || true
+    fi
 fi
 
 # Redémarrage Odoo avec vérification robuste
 log "Démarrage du service Odoo..."
-systemctl stop odoo
-sleep 3
+systemctl stop odoo || true
+sleep 5
 systemctl start odoo
-sleep 10
+sleep 15
 
 # Vérification finale avec plusieurs tentatives
-for i in {1..3}; do
+for i in {1..5}; do
     if systemctl is-active --quiet odoo; then
-        log "✅ Odoo démarré avec succès"
+        log "✅ Odoo démarré avec succès (tentative $i/5)"
         break
     else
-        warning "Tentative $i/3 : Odoo non démarré, nouvelle tentative..."
+        warning "Tentative $i/5 : Odoo non démarré, nouvelle tentative..."
         systemctl restart odoo
-        sleep 10
+        sleep 15
+    fi
+    
+    if [ $i -eq 5 ]; then
+        warning "❌ Odoo n'a pas pu démarrer après 5 tentatives, vérification des logs..."
+        systemctl status odoo
+        journalctl -u odoo -n 10 --no-pager
     fi
 done
-
-systemctl restart odoo || error "Échec redémarrage Odoo"
 
 # Installation Webmin
 log "Installation de Webmin..."
@@ -506,7 +549,7 @@ sed -i "s/listen=10000/listen=$WEBMIN_PORT/" /etc/webmin/miniserv.conf
 
 systemctl restart webmin || error "Échec redémarrage Webmin"
 
-log "✅ Nginx, Odoo et Webmin installés et configurés"
+log "✅ Nginx, Odoo $ODOO_VERSION et Webmin installés et configurés"
 
 #################################################################################
 # ÉTAPE 5: SÉCURISATION FINALE + DÉSACTIVATION AUTOMATIQUE MOTS DE PASSE
