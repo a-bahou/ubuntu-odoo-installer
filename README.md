@@ -660,14 +660,27 @@ sudo systemctl list-units --failed
 ---
 
 ✅ Ajout de systemerp.local sur le poste Windows – Résultat : OK
-Ajout manuel de l’entrée DNS locale via modification du fichier hosts :
+
+1- Puis vidage du cache DNS :
+
+ipconfig /flushdns
+
+2- Ajout manuel de l’entrée DNS locale via modification du fichier hosts :
 
 $hostsContent = Get-Content "C:\Windows\System32\drivers\etc\hosts"
-$hostsContent += "192.168.1.190 systemerp.local"
+
+$hostsContent += "192.168.100.240 systemerp.local"
+
 Set-Content -Path "C:\Windows\System32\drivers\etc\hosts" -Value $hostsContent -Encoding ASCII -Force
 
-Puis vidage du cache DNS :
-ipconfig /flushdns
+3- Test l'acces
+
+Get-Content ... | Select-String "systemerp.local"
+
+ping systemerp.local
+
+nslookup systemerp.local
+
 
 **🚀 Installation automatisée développée pour la production critique**  
 **🔒 Sécurité maximale + Rapidité d'installation optimisée**  
