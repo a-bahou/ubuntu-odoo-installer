@@ -221,8 +221,6 @@ fi
 # Installation des dépendances Python pour modules Odoo avancés
 log "Installation des dépendances Python pour modules Odoo..."
 pip3 install --upgrade pip
-
-# Installation des dépendances de base
 pip3 install \
     dropbox \
     pyncclient \
@@ -232,6 +230,9 @@ pip3 install \
     requests \
     cryptography \
     pillow \
+    lxml \
+    'lxml[html_clean]' \
+    lxml_html_clean \
     reportlab \
     qrcode[pil] \
     xlsxwriter \
@@ -239,22 +240,6 @@ pip3 install \
     openpyxl \
     python-dateutil \
     pytz || warning "Certaines dépendances Python ont échoué (continuer...)"
-
-# Installation lxml avec version compatible selon Odoo
-log "Installation de lxml avec version compatible Odoo $ODOO_VERSION..."
-if [[ "$ODOO_VERSION" == "14.0" ]] || [[ "$ODOO_VERSION" == "15.0" ]]; then
-    # Versions compatibles pour Odoo 14.0/15.0
-    pip3 install lxml==4.9.2
-    # Pas de lxml_html_clean pour éviter les conflits
-    log "✅ lxml 4.9.2 installé (compatible Odoo $ODOO_VERSION)"
-else
-    # Versions récentes pour Odoo 16.0+
-    pip3 install lxml 'lxml[html_clean]' lxml_html_clean || {
-        warning "Échec installation lxml avec html_clean, installation lxml seul..."
-        pip3 install lxml
-    }
-    log "✅ lxml avec html_clean installé (compatible Odoo $ODOO_VERSION)"
-fi
 
 log "✅ Outils système et dépendances Python installés avec succès"
 
@@ -425,6 +410,19 @@ nginx -t && systemctl restart nginx || error "Échec configuration Nginx"
 # Installation Odoo avec méthode correcte selon la version
 log "🔄 Installation d'Odoo $ODOO_VERSION (méthode adaptée)..."
 
+# CORRECTION : Attendre la fin des processus apt en cours
+log "Vérification des processus apt en cours..."
+while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+    log "⏳ Attente de la fin des processus apt en cours..."
+    sleep 5
+done
+
+# Nettoyage des verrous résiduels
+log "Nettoyage des verrous apt..."
+rm -f /var/lib/apt/lists/lock
+rm -f /var/cache/apt/archives/lock
+rm -f /var/lib/dpkg/lock*
+
 # Suppression des sources Odoo existantes pour éviter les conflits
 rm -f /etc/apt/sources.list.d/odoo.list
 rm -f /usr/share/keyrings/odoo-archive-keyring.gpg
@@ -439,9 +437,23 @@ if [[ "$ODOO_VERSION" == "14.0" ]] || [[ "$ODOO_VERSION" == "15.0" ]]; then
     # Ajout du dépôt avec la bonne syntaxe
     echo "deb [signed-by=/usr/share/keyrings/odoo-archive-keyring.gpg] https://nightly.odoo.com/$ODOO_VERSION/nightly/deb/ ./" > /etc/apt/sources.list.d/odoo.list
     
-    # Mise à jour et installation
+    # Mise à jour et installation avec gestion des verrous
     log "Mise à jour des paquets et installation Odoo $ODOO_VERSION..."
+    
+    # Attendre que les verrous soient libérés avant mise à jour
+    while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+        log "⏳ Attente libération verrous pour mise à jour..."
+        sleep 3
+    done
+    
     DEBIAN_FRONTEND=noninteractive apt-get update || error "Échec mise à jour paquets Odoo"
+    
+    # Attendre que les verrous soient libérés avant installation
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+        log "⏳ Attente libération verrous pour installation..."
+        sleep 3
+    done
+    
     DEBIAN_FRONTEND=noninteractive apt-get install -y odoo -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" || error "Échec installation Odoo $ODOO_VERSION"
     
 else
@@ -451,7 +463,19 @@ else
     wget -O - https://nightly.odoo.com/odoo.key | gpg --dearmor -o /usr/share/keyrings/odoo-archive-keyring.gpg || error "Échec téléchargement clé GPG Odoo"
     echo "deb [signed-by=/usr/share/keyrings/odoo-archive-keyring.gpg] https://nightly.odoo.com/$ODOO_VERSION/nightly/deb/ ./" | tee /etc/apt/sources.list.d/odoo.list
     
+    # Attendre que les verrous soient libérés
+    while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+        log "⏳ Attente libération verrous pour mise à jour..."
+        sleep 3
+    done
+    
     DEBIAN_FRONTEND=noninteractive apt-get update || error "Échec mise à jour paquets Odoo"
+    
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+        log "⏳ Attente libération verrous pour installation..."
+        sleep 3
+    done
+    
     DEBIAN_FRONTEND=noninteractive apt-get install -y odoo -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" || error "Échec installation Odoo $ODOO_VERSION"
 fi
 
@@ -514,27 +538,15 @@ chmod 640 /opt/odoo-secure/config/odoo.conf
 ln -sf /opt/odoo-secure/config/odoo.conf /etc/odoo/odoo.conf
 chown odoo:odoo /etc/odoo/odoo.conf
 
-# Test configuration Odoo avant démarrage avec correction lxml si nécessaire
+# Test configuration Odoo avant démarrage
 log "Test de la configuration Odoo..."
 if sudo -u odoo odoo --config=/etc/odoo/odoo.conf --test-enable --stop-after-init --logfile=/tmp/odoo-test.log 2>/dev/null; then
     log "✅ Configuration Odoo valide"
 else
-    warning "⚠️ Test configuration Odoo en cours, vérification des erreurs..."
-    
-    # Vérification spécifique de l'erreur lxml pour Odoo 14.0/15.0
-    if [ -f "/tmp/odoo-test.log" ] && grep -q "lxml.html.clean.*defs" /tmp/odoo-test.log; then
-        log "🔧 Détection erreur lxml.html.clean - Correction automatique..."
-        
-        # Correction automatique pour Odoo 14.0/15.0
-        pip3 uninstall -y lxml_html_clean 'lxml[html_clean]' 2>/dev/null || true
-        pip3 install lxml==4.9.2 --force-reinstall
-        
-        log "✅ Correction lxml appliquée pour Odoo $ODOO_VERSION"
-    fi
-    
-    # Afficher seulement les erreurs critiques restantes
+    warning "⚠️ Test configuration Odoo en cours, vérification..."
+    # Afficher seulement les erreurs critiques s'il y en a
     if [ -f "/tmp/odoo-test.log" ]; then
-        grep -i "error\|critical\|fatal" /tmp/odoo-test.log | grep -v "lxml.html.clean" | head -5 || true
+        grep -i "error\|critical\|fatal" /tmp/odoo-test.log | head -5 || true
     fi
 fi
 
