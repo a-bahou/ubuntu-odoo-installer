@@ -2,8 +2,9 @@
 
 #################################################################################
 # SCRIPT D'INSTALLATION AUTOMATISÉE - UBUNTU SERVER + ODOO SÉCURISÉ
-# Version: 2.1 - Support Odoo 14.0, 15.0, 16.0, 17.0, 18.0
-# Date: Juillet 2025
+# Version: 2.2 - Dépendances Python optimisées par version Odoo
+# Date: Août 2025 - Support Odoo 14.0, 15.0, 16.0, 17.0, 18.0
+# Corrections: lxml, PostgreSQL port, Database Manager
 #################################################################################
 
 # Couleurs pour les logs
@@ -221,25 +222,56 @@ fi
 # Installation des dépendances Python pour modules Odoo avancés
 log "Installation des dépendances Python pour modules Odoo..."
 pip3 install --upgrade pip
-pip3 install \
-    dropbox \
-    pyncclient \
-    nextcloud-api-wrapper \
-    boto3 \
-    paramiko \
-    requests \
-    cryptography \
-    pillow \
-    lxml \
-    'lxml[html_clean]' \
-    lxml_html_clean \
-    reportlab \
-    qrcode[pil] \
-    xlsxwriter \
-    xlrd \
-    openpyxl \
-    python-dateutil \
-    pytz || warning "Certaines dépendances Python ont échoué (continuer...)"
+
+# NOUVEAU : Dépendances spécifiques selon la version Odoo
+if [[ "$ODOO_VERSION" == "14.0" ]] || [[ "$ODOO_VERSION" == "15.0" ]]; then
+    log "📦 Installation dépendances Python pour Odoo $ODOO_VERSION (versions compatibles)..."
+    
+    # Dépendances critiques avec versions fixes pour Odoo 14.0/15.0
+    pip3 install \
+        'lxml==4.9.3' \
+        'lxml_html_clean==0.1.0' \
+        'Pillow>=8.0.0,<10.0.0' \
+        'Werkzeug>=2.0.0,<2.1.0' \
+        'reportlab>=3.5.0,<4.0.0' \
+        requests \
+        cryptography \
+        'xlsxwriter>=1.3.0' \
+        'xlrd>=1.2.0,<2.1.0' \
+        'openpyxl>=3.0.0' \
+        'python-dateutil>=2.8.0' \
+        pytz \
+        qrcode \
+        dropbox \
+        pyncclient \
+        nextcloud-api-wrapper \
+        boto3 \
+        paramiko || warning "Certaines dépendances Python ont échoué (continuer...)"
+        
+else
+    log "📦 Installation dépendances Python pour Odoo $ODOO_VERSION (versions récentes)..."
+    
+    # Dépendances avec versions récentes pour Odoo 16.0+
+    pip3 install \
+        lxml \
+        'lxml[html_clean]' \
+        lxml_html_clean \
+        Pillow \
+        requests \
+        cryptography \
+        reportlab \
+        'qrcode[pil]' \
+        xlsxwriter \
+        xlrd \
+        openpyxl \
+        python-dateutil \
+        pytz \
+        dropbox \
+        pyncclient \
+        nextcloud-api-wrapper \
+        boto3 \
+        paramiko || warning "Certaines dépendances Python ont échoué (continuer...)"
+fi
 
 log "✅ Outils système et dépendances Python installés avec succès"
 
@@ -571,40 +603,103 @@ chown odoo:odoo /etc/odoo/odoo.conf
 
 # Test configuration Odoo avant démarrage
 log "Test de la configuration Odoo..."
-if sudo -u odoo odoo --config=/etc/odoo/odoo.conf --test-enable --stop-after-init --logfile=/tmp/odoo-test.log 2>/dev/null; then
-    log "✅ Configuration Odoo valide"
+
+# Test différencié selon la version Odoo
+if [[ "$ODOO_VERSION" == "14.0" ]] || [[ "$ODOO_VERSION" == "15.0" ]]; then
+    # Test spécial pour Odoo 14.0/15.0 (vérification lxml)
+    log "🔍 Test spécifique Odoo $ODOO_VERSION (vérification compatibilité lxml)..."
+    
+    # Test des dépendances critiques
+    if python3 -c "from lxml.html import clean; print('lxml.html.clean: OK')" 2>/dev/null; then
+        log "✅ lxml.html.clean compatible"
+    else
+        warning "❌ Problème lxml détecté, correction automatique..."
+        pip3 install --force-reinstall 'lxml==4.9.3' 'lxml_html_clean==0.1.0'
+    fi
+    
+    # Test Odoo avec timeout
+    if timeout 30 sudo -u odoo odoo --config=/etc/odoo/odoo.conf --test-enable --stop-after-init --logfile=/tmp/odoo-test.log 2>/dev/null; then
+        log "✅ Configuration Odoo $ODOO_VERSION valide"
+    else
+        warning "⚠️ Test Odoo $ODOO_VERSION - Vérification des logs..."
+        if [ -f "/tmp/odoo-test.log" ]; then
+            grep -i "lxml\|AttributeError\|ImportError" /tmp/odoo-test.log | head -3 || true
+        fi
+    fi
 else
-    warning "⚠️ Test configuration Odoo en cours, vérification..."
-    # Afficher seulement les erreurs critiques s'il y en a
-    if [ -f "/tmp/odoo-test.log" ]; then
-        grep -i "error\|critical\|fatal" /tmp/odoo-test.log | head -5 || true
+    # Test standard pour Odoo 16.0+
+    if timeout 30 sudo -u odoo odoo --config=/etc/odoo/odoo.conf --test-enable --stop-after-init --logfile=/tmp/odoo-test.log 2>/dev/null; then
+        log "✅ Configuration Odoo $ODOO_VERSION valide"
+    else
+        warning "⚠️ Test configuration Odoo en cours, vérification..."
+        if [ -f "/tmp/odoo-test.log" ]; then
+            grep -i "error\|critical\|fatal" /tmp/odoo-test.log | head -5 || true
+        fi
     fi
 fi
 
-# Redémarrage Odoo avec vérification robuste
-log "Démarrage du service Odoo..."
+# Redémarrage Odoo avec vérification robuste selon la version
+log "Démarrage du service Odoo $ODOO_VERSION..."
 systemctl stop odoo || true
 sleep 5
-systemctl start odoo
-sleep 15
 
-# Vérification finale avec plusieurs tentatives
-for i in {1..5}; do
-    if systemctl is-active --quiet odoo; then
-        log "✅ Odoo démarré avec succès (tentative $i/5)"
-        break
-    else
-        warning "Tentative $i/5 : Odoo non démarré, nouvelle tentative..."
-        systemctl restart odoo
-        sleep 15
-    fi
+# Gestion spéciale pour Odoo 14.0/15.0 (démarrage plus lent)
+if [[ "$ODOO_VERSION" == "14.0" ]] || [[ "$ODOO_VERSION" == "15.0" ]]; then
+    log "⏳ Démarrage Odoo $ODOO_VERSION (démarrage optimisé pour versions anciennes)..."
+    systemctl start odoo
+    sleep 20  # Temps supplémentaire pour Odoo 14.0/15.0
     
-    if [ $i -eq 5 ]; then
-        warning "❌ Odoo n'a pas pu démarrer après 5 tentatives, vérification des logs..."
-        systemctl status odoo
-        journalctl -u odoo -n 10 --no-pager
-    fi
-done
+    # Vérification avec diagnostic lxml si échec
+    for i in {1..5}; do
+        if systemctl is-active --quiet odoo; then
+            log "✅ Odoo $ODOO_VERSION démarré avec succès (tentative $i/5)"
+            break
+        else
+            warning "Tentative $i/5 : Odoo $ODOO_VERSION non démarré..."
+            
+            # Diagnostic spécial lxml pour premières tentatives
+            if [ $i -le 2 ]; then
+                log "🔍 Vérification compatibilité lxml..."
+                if ! python3 -c "from lxml.html import clean; print('OK')" 2>/dev/null; then
+                    log "🔧 Correction automatique lxml en cours..."
+                    pip3 install --force-reinstall 'lxml==4.9.3' 'lxml_html_clean==0.1.0'
+                fi
+            fi
+            
+            systemctl restart odoo
+            sleep 20
+        fi
+        
+        if [ $i -eq 5 ]; then
+            warning "❌ Odoo $ODOO_VERSION échec après 5 tentatives, diagnostic..."
+            systemctl status odoo
+            journalctl -u odoo -n 10 --no-pager
+            log "💡 Vérification manuelle recommandée: sudo journalctl -u odoo -f"
+        fi
+    done
+else
+    # Démarrage standard pour Odoo 16.0+
+    log "⏳ Démarrage Odoo $ODOO_VERSION (démarrage standard)..."
+    systemctl start odoo
+    sleep 15
+    
+    for i in {1..5}; do
+        if systemctl is-active --quiet odoo; then
+            log "✅ Odoo $ODOO_VERSION démarré avec succès (tentative $i/5)"
+            break
+        else
+            warning "Tentative $i/5 : Odoo $ODOO_VERSION non démarré, nouvelle tentative..."
+            systemctl restart odoo
+            sleep 15
+        fi
+        
+        if [ $i -eq 5 ]; then
+            warning "❌ Odoo $ODOO_VERSION échec après 5 tentatives, diagnostic..."
+            systemctl status odoo
+            journalctl -u odoo -n 10 --no-pager
+        fi
+    done
+fi
 
 # Installation Webmin
 log "Installation de Webmin..."
