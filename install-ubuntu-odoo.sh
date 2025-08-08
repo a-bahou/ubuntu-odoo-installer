@@ -323,12 +323,39 @@ ALTER USER "$ODOO_USER" PASSWORD '$POSTGRES_USER_PASS';
 \q
 EOF
 
-# Configuration port personnalisé
+# Configuration port personnalisé PostgreSQL
 log "Configuration du port PostgreSQL: $POSTGRES_PORT"
-sed -i "s/#port = 5432/port = $POSTGRES_PORT/" /etc/postgresql/*/main/postgresql.conf
-sed -i "s/#listen_addresses = 'localhost'/listen_addresses = 'localhost'/" /etc/postgresql/*/main/postgresql.conf
+
+# CORRECTION : Trouver le bon fichier de configuration PostgreSQL
+POSTGRES_VERSION=$(ls /etc/postgresql/ | head -n1)
+POSTGRES_CONF="/etc/postgresql/$POSTGRES_VERSION/main/postgresql.conf"
+
+log "Fichier PostgreSQL trouvé: $POSTGRES_CONF"
+
+# Modifier le port (gérer les cas commentés et non commentés)
+sed -i "s/#port = 5432/port = $POSTGRES_PORT/" "$POSTGRES_CONF"
+sed -i "s/port = 5432/port = $POSTGRES_PORT/" "$POSTGRES_CONF"
+sed -i "s/#listen_addresses = 'localhost'/listen_addresses = 'localhost'/" "$POSTGRES_CONF"
+sed -i "s/listen_addresses = 'localhost'/listen_addresses = 'localhost'/" "$POSTGRES_CONF"
+
+# Vérification du changement
+if grep -q "port = $POSTGRES_PORT" "$POSTGRES_CONF"; then
+    log "✅ Port PostgreSQL modifié avec succès : $POSTGRES_PORT"
+else
+    warning "⚠️ Modification manuelle du port PostgreSQL requise"
+    # Forcer l'ajout du port si pas trouvé
+    echo "port = $POSTGRES_PORT" >> "$POSTGRES_CONF"
+fi
 
 systemctl restart postgresql || error "Échec redémarrage PostgreSQL"
+
+# Vérification que PostgreSQL écoute sur le bon port
+sleep 5
+if ss -tlnp | grep ":$POSTGRES_PORT" >/dev/null; then
+    log "✅ PostgreSQL écoute correctement sur le port $POSTGRES_PORT"
+else
+    error "❌ PostgreSQL n'écoute pas sur le port $POSTGRES_PORT"
+fi
 
 log "✅ PostgreSQL configuré sur le port $POSTGRES_PORT"
 
@@ -502,9 +529,10 @@ db_password = $POSTGRES_USER_PASS
 # Mot de passe master Odoo
 admin_passwd = $ODOO_MASTER_PASS
 
-# Sécurité renforcée
-list_db = False
-db_filter = ^.*$
+# CORRECTION : Interface base de données ACTIVÉE
+list_db = True
+dbfilter = ^.*$
+db_template = template0
 proxy_mode = True
 
 # Addons sécurisés (dossiers personnalisés protégés)
@@ -514,7 +542,7 @@ addons_path = /usr/lib/python3/dist-packages/odoo/addons,/opt/odoo-secure/addons
 logfile = /opt/odoo-secure/logs/odoo.log
 data_dir = /opt/odoo-secure/filestore
 
-# Sécurité supplémentaire
+# Sécurité et performance
 without_demo = True
 max_cron_threads = 1
 limit_memory_hard = 2684354560
@@ -522,6 +550,9 @@ limit_memory_soft = 2147483648
 limit_request = 8192
 limit_time_cpu = 600
 limit_time_real = 1200
+
+# Sécurité avancée (mais garder l'accès base de données)
+server_wide_modules = base,web
 EOF
 
 # CORRECTION CRITIQUE : Permissions correctes POUR L'UTILISATEUR ODOO
