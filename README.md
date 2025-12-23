@@ -658,6 +658,284 @@ sudo systemctl list-units --failed
 - ✅ **Support facilité** : Toutes infos clients centralisées
 
 ---
+# 🔄 Changement d'Adresse IP Serveur Odoo
+
+## 📍 PARTIE 1 : Configuration sur le Serveur
+
+### 1️⃣ Modifier l'Adresse IP Réseau
+
+```bash
+# Éditer la configuration réseau
+sudo nano /etc/netplan/00-installer-config.yaml
+```
+
+**Modifier les valeurs suivantes :**
+```yaml
+network:
+  version: 2
+  ethernets:
+    eth0:  # ou ens18, selon votre interface
+      dhcp4: no
+      addresses:
+        - 192.168.1.150/24  # ⬅️ NOUVELLE IP ICI
+      routes:
+        - to: default
+          via: 192.168.1.1  # ⬅️ VOTRE PASSERELLE
+      nameservers:
+        addresses: [8.8.8.8, 8.8.4.4, 192.168.1.1]
+```
+
+```bash
+# Appliquer la nouvelle configuration
+sudo netplan apply
+
+# Vérifier que l'IP a bien changé
+ip addr show
+```
+
+### 2️⃣ Mettre à Jour le Fichier Hosts
+
+```bash
+# Éditer le fichier hosts
+sudo nano /etc/hosts
+```
+
+**Remplacer l'ancienne IP par la nouvelle :**
+```bash
+# AVANT :
+192.168.1.100    systemerp.local
+192.168.1.100    systemerp-prod.systemerp.local
+
+# APRÈS :
+192.168.1.150    systemerp.local
+192.168.1.150    systemerp-prod.systemerp.local
+```
+
+### 3️⃣ Mettre à Jour la Configuration Nginx
+
+```bash
+# Éditer la configuration Nginx
+sudo nano /etc/nginx/sites-available/systemerp.local
+```
+
+**Modifier la ligne server_name :**
+```nginx
+server {
+    listen 80;
+    server_name systemerp.local 192.168.1.150;  # ⬅️ NOUVELLE IP ICI
+    
+    # ... reste de la configuration inchangé
+}
+```
+
+```bash
+# Tester la configuration
+sudo nginx -t
+
+# Si OK, redémarrer Nginx
+sudo systemctl restart nginx
+```
+
+### 4️⃣ Redémarrer Tous les Services
+
+```bash
+# Redémarrer dans l'ordre
+sudo systemctl restart postgresql
+sudo systemctl restart nginx
+sudo systemctl restart odoo
+sudo systemctl restart webmin
+sudo systemctl restart ssh
+```
+
+### 5️⃣ Vérification Serveur
+
+```bash
+# Vérifier l'IP active
+ip addr show | grep "inet "
+
+# Vérifier que les services écoutent bien
+sudo ss -tlnp | grep -E "(8173|9017|6792|12579|80)"
+
+# Tester l'accès local
+curl -I http://localhost
+```
+
+---
+
+## 🖥️ PARTIE 2 : Configuration sur les Machines Clientes
+
+### 📌 Sur Chaque Machine Ubuntu qui Accède au Serveur
+
+#### Méthode Simple : Ajout dans /etc/hosts
+
+```bash
+# Ouvrir le fichier hosts
+sudo nano /etc/hosts
+```
+
+**Ajouter cette ligne à la fin :**
+```
+192.168.1.150    systemerp.local systemerp-prod.systemerp.local
+```
+
+**Explication :**
+- `192.168.1.150` = l'IP de votre serveur Odoo
+- `systemerp.local` = le nom de domaine pour y accéder facilement
+- Vous pouvez maintenant utiliser `systemerp.local` au lieu de l'IP
+
+```bash
+# Sauvegarder : Ctrl+O puis Entrée
+# Quitter : Ctrl+X
+```
+
+#### ✅ Tester l'Accès Client
+
+```bash
+# 1. Tester la résolution du nom
+ping -c 4 systemerp.local
+
+# 2. Tester l'accès HTTP (Odoo)
+curl -I http://systemerp.local
+
+# 3. Ouvrir dans le navigateur
+firefox http://systemerp.local
+# ou
+google-chrome http://systemerp.local
+```
+
+#### 🔑 Configuration SSH Pratique (Optionnel)
+
+```bash
+# Créer/éditer la config SSH
+nano ~/.ssh/config
+```
+
+**Ajouter cette configuration :**
+```
+Host systemerp
+    HostName systemerp.local
+    Port 8173
+    User sysadmin
+    IdentityFile ~/.ssh/id_rsa
+```
+
+**Maintenant vous pouvez vous connecter simplement avec :**
+```bash
+ssh systemerp
+```
+
+---
+
+## 🔗 URLs d'Accès Finales
+
+Après configuration, depuis vos machines clientes :
+
+| Service | Accès par Nom | Accès par IP |
+|---------|---------------|--------------|
+| **Odoo ERP** | `http://systemerp.local` | `http://192.168.1.150` |
+| **Odoo Direct** | `http://systemerp.local:9017` | `http://192.168.1.150:9017` |
+| **Webmin** | `https://systemerp.local:12579` | `https://192.168.1.150:12579` |
+| **SSH PuTTY** | `systemerp.local:8173` | `192.168.1.150:8173` |
+
+---
+
+## 🔍 Script de Vérification Complète
+
+**Sur le serveur :**
+```bash
+#!/bin/bash
+echo "📍 IP Serveur Actuelle :"
+hostname -I
+
+echo ""
+echo "📋 Configuration /etc/hosts :"
+grep systemerp /etc/hosts
+
+echo ""
+echo "🌐 Configuration Nginx :"
+grep server_name /etc/nginx/sites-available/systemerp.local
+
+echo ""
+echo "📊 État des Services :"
+systemctl is-active postgresql nginx odoo webmin ssh | paste -s -d ' '
+
+echo ""
+echo "🚪 Ports Ouverts :"
+sudo ss -tlnp | grep -E "(8173|9017|80)" | awk '{print $4}'
+```
+
+**Sur les clients :**
+```bash
+#!/bin/bash
+echo "🔍 Test Accès SystemERP"
+echo ""
+
+echo "1️⃣ Résolution DNS :"
+ping -c 2 systemerp.local 2>&1 | grep -E "bytes from|Unreachable"
+
+echo ""
+echo "2️⃣ Accès HTTP Odoo :"
+curl -s -o /dev/null -w "Status: %{http_code}\n" http://systemerp.local
+
+echo ""
+echo "3️⃣ Configuration locale :"
+grep systemerp /etc/hosts
+```
+
+---
+
+## 🚨 Troubleshooting
+
+### ❌ Problème : "systemerp.local" ne se résout pas
+
+```bash
+# Sur le client, vérifier /etc/hosts
+cat /etc/hosts | grep systemerp
+
+# Si vide, ajouter manuellement
+echo "192.168.1.150    systemerp.local" | sudo tee -a /etc/hosts
+
+# Vider le cache DNS
+sudo systemd-resolve --flush-caches
+```
+
+### ❌ Problème : Nginx retourne erreur 502
+
+```bash
+# Sur le serveur, vérifier qu'Odoo tourne
+sudo systemctl status odoo
+
+# Vérifier les logs
+sudo journalctl -u odoo -n 50
+
+# Redémarrer Odoo
+sudo systemctl restart odoo
+```
+
+### ❌ Problème : Connexion SSH refusée
+
+```bash
+# Vérifier que le firewall autorise le port SSH
+sudo ufw status | grep 8173
+
+# Si absent, ajouter
+sudo ufw allow 8173/tcp
+sudo ufw reload
+```
+
+---
+
+## 📝 Résumé Rapide
+
+**🔧 Sur le Serveur (3 fichiers à modifier) :**
+1. `/etc/netplan/00-installer-config.yaml` → Nouvelle IP
+2. `/etc/hosts` → Remplacer IP
+3. `/etc/nginx/sites-available/systemerp.local` → Nouvelle IP
+4. Redémarrer services
+
+**💻 Sur Chaque Client (1 fichier) :**
+1. `/etc/hosts` → Ajouter ligne `IP_SERVEUR systemerp.local`
+2. Tester avec `ping systemerp.local`
 
 ✅ Ajout de systemerp.local sur le poste Windows – Résultat : OK
 
