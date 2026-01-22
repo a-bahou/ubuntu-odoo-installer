@@ -23,6 +23,7 @@ Script d'installation automatique pour **Ubuntu Server 22.04** avec **Odoo (16.0
 > Remplacez `user` par le nom d’utilisateur distant et `<IP_DU_SERVEUR>` par l’adresse IP réelle du serveur.
 
 ### Faire la MAJ du serveur et outils nécessaires pour démarrage :
+```bash
 
 # Sur Ubuntu Server fraîchement installé
 sudo apt update
