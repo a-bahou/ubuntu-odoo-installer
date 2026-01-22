@@ -5,7 +5,25 @@ Script d'installation automatique pour **Ubuntu Server 22.04** avec **Odoo (16.0
 ## ⚡ Installation Ultra-Rapide (5-8 minutes)
 
 ### **🔧 Prérequis Minimum**
-```bash
+
+### Pour configurer la clé SSH sur ubuntu :
+
+1. **Génération de la paire de clés SSH** (nommée `labo`) :  
+
+   ssh-keygen -t ed25519 -f ~/.ssh/labo -C "labo"
+   
+2. **Copie de la clé publique sur le serveur** :  
+
+   ssh-copy-id -i ~/.ssh/labo.pub user@<IP_DU_SERVEUR>
+   
+3. **Test de la connexion avec la clé** :  
+
+   ssh -i ~/.ssh/labo user@<IP_DU_SERVEUR>
+
+> Remplacez `user` par le nom d’utilisateur distant et `<IP_DU_SERVEUR>` par l’adresse IP réelle du serveur.
+
+### Faire la MAJ du serveur et outils nécessaires pour démarrage :
+
 # Sur Ubuntu Server fraîchement installé
 sudo apt update
 sudo apt upgrade -y
