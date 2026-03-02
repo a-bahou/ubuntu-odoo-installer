@@ -3,7 +3,7 @@
 #################################################################################
 # SCRIPT D'INSTALLATION AUTOMATISÉE - UBUNTU SERVER + ODOO SÉCURISÉ
 # Version: 2.2 - Dépendances Python optimisées par version Odoo
-# Date: Août 2025 - Support Odoo 14.0, 15.0, 16.0, 17.0, 18.0
+# Date: Août 2025 - Support Odoo 14.0, 15.0, 16.0, 17.0, 18.0, 19.0
 # Corrections: lxml, PostgreSQL port, Database Manager
 #################################################################################
 
@@ -81,16 +81,16 @@ POSTGRES_PORT=${POSTGRES_PORT:-$DEFAULT_POSTGRES_PORT}
 # Configuration version Odoo avec validation
 echo ""
 echo "📦 VERSION ODOO :"
-echo "   Versions disponibles : 14.0, 15.0, 16.0, 17.0, 18.0"
+echo "   Versions disponibles : 14.0, 15.0, 16.0, 17.0, 18.0, 19.0"
 while true; do
     read -p "Version Odoo [$DEFAULT_ODOO_VERSION]: " ODOO_VERSION
     ODOO_VERSION=${ODOO_VERSION:-$DEFAULT_ODOO_VERSION}
     
     # Validation de la version
-    if [[ "$ODOO_VERSION" =~ ^(14\.0|15\.0|16\.0|17\.0|18\.0)$ ]]; then
+    if [[ "$ODOO_VERSION" =~ ^(14\.0|15\.0|16\.0|17\.0|18\.0|19\.0)$ ]]; then
         break
     else
-        echo "❌ Version invalide. Choisissez : 14.0, 15.0, 16.0, 17.0 ou 18.0"
+        echo "❌ Version invalide. Choisissez : 14.0, 15.0, 16.0, 17.0, 18.0 ou 19.0"
     fi
 done
 
@@ -281,6 +281,11 @@ log "✅ Outils système et dépendances Python installés avec succès"
 
 log "ÉTAPE 2/5: Configuration firewall avec tous les ports personnalisés"
 
+# Détection du réseau local (utilisé pour restreindre Odoo, PostgreSQL et Webmin)
+# On dérive le /24 depuis $CURRENT_IP déjà validé par l'utilisateur
+LOCAL_NETWORK=$(echo $CURRENT_IP | awk -F'.' '{print $1"."$2"."$3".0/24"}')
+log "Réseau local détecté : $LOCAL_NETWORK (restriction des accès internes)"
+
 # Configuration UFW
 log "Configuration du firewall UFW..."
 ufw --force reset
@@ -295,17 +300,21 @@ log "Ouverture des ports HTTP/HTTPS"
 ufw allow 80/tcp comment 'HTTP'
 ufw allow 443/tcp comment 'HTTPS'
 
-log "Ouverture du port Odoo: $ODOO_PORT"
-ufw allow $ODOO_PORT/tcp comment 'Odoo Custom'
+log "Ouverture du port Odoo: $ODOO_PORT (réseau local uniquement)"
+ufw allow from $LOCAL_NETWORK to any port $ODOO_PORT comment 'Odoo Local Network Only'
 
-log "Ouverture du port PostgreSQL: $POSTGRES_PORT"
-ufw allow $POSTGRES_PORT/tcp comment 'PostgreSQL Custom'
+log "Ouverture du port PostgreSQL: $POSTGRES_PORT (localhost uniquement)"
+ufw allow from 127.0.0.1 to any port $POSTGRES_PORT comment 'PostgreSQL Localhost Only'
 
-log "Ouverture du port Webmin: $WEBMIN_PORT"
-ufw allow $WEBMIN_PORT/tcp comment 'Webmin Custom'
+log "Ouverture du port Webmin: $WEBMIN_PORT (réseau local uniquement)"
+ufw allow from $LOCAL_NETWORK to any port $WEBMIN_PORT comment 'Webmin Local Network Only'
 
 # Activation firewall
 ufw --force enable || error "Échec activation firewall"
+
+# Vérification des règles appliquées
+log "🔒 Vérification des règles UFW de restriction..."
+ufw status numbered | grep -E "($ODOO_PORT|$POSTGRES_PORT|$WEBMIN_PORT)" || true
 
 log "✅ Firewall configuré avec succès"
 
@@ -330,8 +339,18 @@ netplan apply || warning "Échec configuration réseau (continuons...)"
 
 # Configuration domaine local
 log "Configuration du domaine local..."
-echo "$CURRENT_IP    $DOMAIN_LOCAL" >> /etc/hosts
-echo "$CURRENT_IP    $SERVER_NAME.$DOMAIN_LOCAL" >> /etc/hosts
+
+# Sauvegarde de /etc/hosts avant modification
+cp /etc/hosts /etc/hosts.backup.$(date +%Y%m%d_%H%M%S)
+
+# Ajout des entrées avec vérification des doublons (idempotent)
+grep -qF "$CURRENT_IP    $DOMAIN_LOCAL" /etc/hosts || echo "$CURRENT_IP    $DOMAIN_LOCAL" >> /etc/hosts
+grep -qF "$CURRENT_IP    $SERVER_NAME.$DOMAIN_LOCAL" /etc/hosts || echo "$CURRENT_IP    $SERVER_NAME.$DOMAIN_LOCAL" >> /etc/hosts
+
+# Résolution locale pour wkhtmltopdf (fix timeout PDF après changement routeur / NAT loopback)
+# wkhtmltopdf doit pouvoir joindre Odoo via localhost sans dépendre du routage externe
+log "Ajout résolution locale wkhtmltopdf (fix NAT loopback / timeout PDF)..."
+grep -qF "127.0.0.1 $DOMAIN_LOCAL" /etc/hosts || echo "127.0.0.1 $DOMAIN_LOCAL" >> /etc/hosts
 
 log "✅ Configuration réseau terminée"
 
@@ -516,7 +535,7 @@ if [[ "$ODOO_VERSION" == "14.0" ]] || [[ "$ODOO_VERSION" == "15.0" ]]; then
     DEBIAN_FRONTEND=noninteractive apt-get install -y odoo -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" || error "Échec installation Odoo $ODOO_VERSION"
     
 else
-    # Méthode standard pour Odoo 16.0, 17.0, 18.0
+    # Méthode standard pour Odoo 16.0, 17.0, 18.0, 19.0
     log "🔧 Installation Odoo $ODOO_VERSION avec méthode standard..."
     
     wget -O - https://nightly.odoo.com/odoo.key | gpg --dearmor -o /usr/share/keyrings/odoo-archive-keyring.gpg || error "Échec téléchargement clé GPG Odoo"
@@ -566,6 +585,10 @@ list_db = True
 dbfilter = ^.*$
 db_template = template0
 proxy_mode = True
+
+# Fix wkhtmltopdf : résolution locale pour éviter les timeouts PDF (NAT loopback)
+# Force wkhtmltopdf à se connecter via localhost, indépendant du routeur/DNS externe
+report_url = http://127.0.0.1:$ODOO_PORT
 
 # Addons sécurisés (dossiers personnalisés protégés)
 addons_path = /usr/lib/python3/dist-packages/odoo/addons,/opt/odoo-secure/addons-external,/opt/odoo-secure/addons-custom
