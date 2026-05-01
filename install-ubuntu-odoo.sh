@@ -2,7 +2,7 @@
 
 #################################################################################
 # SCRIPT D'INSTALLATION AUTOMATISÉE - UBUNTU SERVER + ODOO SÉCURISÉ
-# Version: 2.2 - Dépendances Python optimisées par version Odoo
+# Version: 2.3 - Correctif Odoo 19.0 sur Ubuntu 22.04 (Jammy)
 # Date: Août 2025 - Support Odoo 14.0, 15.0, 16.0, 17.0, 18.0, 19.0
 # Corrections: lxml, PostgreSQL port, Database Manager
 #################################################################################
@@ -196,7 +196,7 @@ apt update && DEBIAN_FRONTEND=noninteractive apt full-upgrade -y -o Dpkg::Option
 log "Installation des outils système essentiels..."
 DEBIAN_FRONTEND=noninteractive apt install -y \
     ufw fail2ban unattended-upgrades nano rsyslog cron \
-    iputils-ping dnsutils net-tools curl wget git \
+    iputils-ping dnsutils net-tools curl wget git equivs \
     python3-pip python3-dev python3-venv \
     libxml2-dev libxslt1-dev libevent-dev libsasl2-dev libldap2-dev \
     pkg-config libtiff5-dev libjpeg8-dev libopenjp2-7-dev zlib1g-dev \
@@ -554,6 +554,30 @@ else
         sleep 3
     done
     
+
+    # CORRECTIF ODOO 19.0 SUR UBUNTU 22.04 (JAMMY)
+    # python3-lxml-html-clean absent sur Jammy - paquet fantome via equivs
+    if [[ "$ODOO_VERSION" == "19.0" ]]; then
+        UBUNTU_CODENAME=$(lsb_release -cs 2>/dev/null || echo "unknown")
+        if [[ "$UBUNTU_CODENAME" == "jammy" ]]; then
+            log "CORRECTIF: Creation du paquet python3-lxml-html-clean pour Ubuntu 22.04..."
+            mkdir -p /tmp/lxml-clean-fix && cd /tmp/lxml-clean-fix
+            cat > lxml-html-clean.ctl << EQUIVS_EOF
+Section: misc
+Priority: optional
+Standards-Version: 3.9.2
+Package: python3-lxml-html-clean
+Version: 0.4.1
+Maintainer: OdooFix <admin@local>
+Architecture: all
+Description: Dummy package - lxml_html_clean installed via pip
+EQUIVS_EOF
+            equivs-build lxml-html-clean.ctl
+            dpkg -i python3-lxml-html-clean_0.4.1_all.deb || true
+            cd /tmp
+            log "Paquet fantome python3-lxml-html-clean installe"
+        fi
+    fi
     DEBIAN_FRONTEND=noninteractive apt-get install -y odoo -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" || error "Échec installation Odoo $ODOO_VERSION"
 fi
 
