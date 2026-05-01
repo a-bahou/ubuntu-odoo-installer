@@ -589,11 +589,31 @@ mkdir -p /opt/odoo-secure/{addons-custom,addons-external,config,logs,filestore}
 
 # Configuration Odoo sécurisée
 log "Configuration d'Odoo avec ports personnalisés et addons sécurisés..."
+
+# Détection syntaxe des ports selon version Odoo
+# - Odoo 14.0/15.0 : xmlrpc_port + longpolling_port
+# - Odoo 16.0+     : http_port + gevent_port
+# - Odoo 18.0/19.0 : http_port + gevent_port (sans report_url, option supprimée)
+if [[ "$ODOO_VERSION" == "14.0" ]] || [[ "$ODOO_VERSION" == "15.0" ]]; then
+    CONF_PORT="xmlrpc_port = $ODOO_PORT"
+    CONF_LONGPOLL="longpolling_port = $ODOO_LONGPOLL_PORT"
+    CONF_REPORT_URL="report_url = http://127.0.0.1:$ODOO_PORT"
+elif [[ "$ODOO_VERSION" == "18.0" ]] || [[ "$ODOO_VERSION" == "19.0" ]]; then
+    CONF_PORT="http_port = $ODOO_PORT"
+    CONF_LONGPOLL="gevent_port = $ODOO_LONGPOLL_PORT"
+    CONF_REPORT_URL="# report_url non supporté en v18/v19"
+else
+    # 16.0 et 17.0
+    CONF_PORT="http_port = $ODOO_PORT"
+    CONF_LONGPOLL="gevent_port = $ODOO_LONGPOLL_PORT"
+    CONF_REPORT_URL="report_url = http://127.0.0.1:$ODOO_PORT"
+fi
+
 cat > /opt/odoo-secure/config/odoo.conf << EOF
 [options]
 # Ports personnalisés
-http_port = $ODOO_PORT
-gevent_port = $ODOO_LONGPOLL_PORT
+$CONF_PORT
+$CONF_LONGPOLL
 
 # Base de données PostgreSQL
 db_host = localhost
@@ -604,20 +624,19 @@ db_password = $POSTGRES_USER_PASS
 # Mot de passe master Odoo
 admin_passwd = $ODOO_MASTER_PASS
 
-# CORRECTION : Interface base de données ACTIVÉE
+# Interface base de données
 list_db = True
 dbfilter = ^.*$
 db_template = template0
 proxy_mode = True
 
-# Fix wkhtmltopdf : résolution locale pour éviter les timeouts PDF (NAT loopback)
-# Force wkhtmltopdf à se connecter via localhost, indépendant du routeur/DNS externe
-report_url = http://127.0.0.1:$ODOO_PORT
+# Fix wkhtmltopdf : résolution locale (NAT loopback)
+$CONF_REPORT_URL
 
-# Addons sécurisés (dossiers personnalisés protégés)
+# Addons sécurisés
 addons_path = /usr/lib/python3/dist-packages/odoo/addons,/opt/odoo-secure/addons-external,/opt/odoo-secure/addons-custom
 
-# Logs et données sécurisés
+# Logs et données
 logfile = /opt/odoo-secure/logs/odoo.log
 data_dir = /opt/odoo-secure/filestore
 
@@ -629,8 +648,6 @@ limit_memory_soft = 2147483648
 limit_request = 8192
 limit_time_cpu = 600
 limit_time_real = 1200
-
-# Sécurité avancée (mais garder l'accès base de données)
 server_wide_modules = base,web
 EOF
 
