@@ -592,8 +592,8 @@ log "Configuration d'Odoo avec ports personnalisés et addons sécurisés..."
 cat > /opt/odoo-secure/config/odoo.conf << EOF
 [options]
 # Ports personnalisés
-xmlrpc_port = $ODOO_PORT
-longpolling_port = $ODOO_LONGPOLL_PORT
+http_port = $ODOO_PORT
+gevent_port = $ODOO_LONGPOLL_PORT
 
 # Base de données PostgreSQL
 db_host = localhost
