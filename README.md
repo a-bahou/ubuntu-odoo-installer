@@ -1,984 +1,276 @@
-# 🚀 Ubuntu Server + Odoo - Installation Automatisée Sécurisée
+# 📘 Manuel d'Installation Complet – Ubuntu Server + Odoo Sécurisé
+*Script automatisé v2.0 – Odoo 16/17/18 | Ubuntu 22.04 LTS*
 
-Script d'installation automatique pour **Ubuntu Server 22.04** avec **Odoo (16.0/17.0/18.0)**, PostgreSQL, Nginx et Webmin.
-
-## ⚡ Installation Ultra-Rapide (5-8 minutes)
-
-### **🔧 Prérequis Minimum**
-
-### Pour configurer la clé SSH sur ubuntu :
-
-1. **Génération de la paire de clés SSH** (nommée `labo`) :  
-
-   ssh-keygen -t ed25519 -f ~/.ssh/labo -C "labo"
-   
-2. **Copie de la clé publique sur le serveur** :  
-
-   ssh-copy-id -i ~/.ssh/labo.pub user@<IP_DU_SERVEUR>
-   
-3. **Test de la connexion avec la clé** :  
-
-   ssh -i ~/.ssh/labo user@<IP_DU_SERVEUR>
-
-> Remplacez `user` par le nom d’utilisateur distant et `<IP_DU_SERVEUR>` par l’adresse IP réelle du serveur.
-
-### Faire la MAJ du serveur et outils nécessaires pour démarrage :
-```bash
-
-# Sur Ubuntu Server fraîchement installé
-sudo apt update
-sudo apt upgrade -y
-sudo apt install -y nano wget curl  # Outils de base requis
-```
-
-### **🚀 Installation Automatique Complète**
-```bash
-wget https://raw.githubusercontent.com/a-bahou/ubuntu-odoo-installer/main/install-ubuntu-odoo.sh
-chmod +x install-ubuntu-odoo.sh
-sudo ./install-ubuntu-odoo.sh
-```
-
-**Le script vous demande quelques configurations au début, puis s'exécute automatiquement sans interruption !**
-
-## 🎯 Fonctionnalités Incluses
-
-### 🛡️ **Sécurité Maximale**
-- ✅ **Firewall UFW** avec ports personnalisés
-- ✅ **SSH sécurisé** + désactivation automatique mots de passe
-- ✅ **Fail2ban** anti-intrusion
-- ✅ **PostgreSQL** port personnalisé + utilisateur dédié
-- ✅ **Odoo structure sécurisée** (addons protégés chmod 750)
-- ✅ **Détection automatique clés SSH** + sécurisation
-
-### 🏢 **Applications Installées**
-- ✅ **Odoo** (version configurable 16.0/17.0/18.0)
-- ✅ **PostgreSQL** avec port custom + utilisateur dédié
-- ✅ **Nginx** reverse proxy complet
-- ✅ **Webmin** administration web (port SSL custom)
-- ✅ **wkhtmltopdf** (génération PDF optimisée - version officielle)
-- ✅ **Sauvegarde automatique** quotidienne avec rétention
-
-### 🐍 **Dépendances Python Complètes**
-- ✅ **dropbox** - Intégration Dropbox
-- ✅ **pyncclient** - Connexion Nextcloud
-- ✅ **nextcloud-api-wrapper** - API Nextcloud avancée
-- ✅ **boto3** - Intégration AWS/S3
-- ✅ **paramiko** - Connexions SSH/SFTP
-- ✅ **lxml + lxml[html_clean] + lxml_html_clean** - Parsing XML/HTML complet
-- ✅ **Autres** : requests, cryptography, pillow, reportlab, qrcode, xlsxwriter, openpyxl...
-
-### ⚙️ **Configuration Interactive Intelligente**
-- ✅ **Ports personnalisés** (SSH, Odoo, PostgreSQL, Webmin)
-- ✅ **Version Odoo** au choix (16.0, 17.0, 18.0)
-- ✅ **IP fixe** (détection auto + option manuelle)
-- ✅ **Mots de passe** (défaut B@hou1983 ou personnalisé)
-- ✅ **Installation 100% automatique** après configuration
-
-### 📋 **Documentation Automatique**
-- ✅ **Cahier des charges final** généré automatiquement
-- ✅ **Tous les mots de passe** de l'installation inclus
-- ✅ **Configuration complète** documentée
-- ✅ **Téléchargeable immédiatement** sur le serveur
-
-## 🔧 Ports par Défaut (Configurables)
-
-| Service    | Port Standard | Port Personnalisé | Sécurité      |
-|------------|---------------|-------------------|---------------|
-| SSH        | 22            | 8173              | ✅ Obfusqué   |
-| HTTP       | 80            | 80                | ✅ Nginx      |
-| HTTPS      | 443           | 443               | ✅ SSL        |
-| Odoo       | 8069          | 9017              | ✅ Masqué     |
-| PostgreSQL | 5432          | 6792              | ✅ Interne    |
-| Webmin     | 10000         | 12579             | ✅ SSL        |
-
-## 📋 Processus d'Installation Optimisé
-
-### 🔑 **Option 1 - Sécurité Maximale (RECOMMANDÉE)**
-
-**1. Configuration SSH d'abord (Choisir votre méthode) :**
-
-#### **Windows (PuTTY) :**
-```bash
-# 1. PuTTYgen : RSA 4096 bits, Generate, Save: systemerp-client.ppk
-# 2. Sur serveur :
-mkdir -p ~/.ssh
-nano ~/.ssh/authorized_keys
-# Coller clé publique PuTTY
-chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys
-```
-
-#### **Linux/Ubuntu (Terminal) :**
-```bash
-# Sur votre PC Linux :
-ssh-keygen -t rsa -b 4096 -C "admin@systemerp-client"
-ssh-copy-id -p PORT_SSH sysadmin@IP_SERVEUR
-```
-
-**2. Installation automatique complète :**
-```bash
-wget https://raw.githubusercontent.com/a-bahou/ubuntu-odoo-installer/main/install-ubuntu-odoo.sh
-chmod +x install-ubuntu-odoo.sh
-sudo ./install-ubuntu-odoo.sh
-```
-
-**Résultat :** 🔒 **Sécurisation SSH automatique** (mots de passe désactivés automatiquement)
+> ⏱️ Temps total : **7-11 minutes** (serveur) + **2 min** (par client)  
+> 🔐 Sécurité : SSH clés, UFW, Fail2ban, ports personnalisés
 
 ---
 
-### 🔧 **Option 2 - Installation Rapide**
-
-**1. Installation directe :**
-```bash
-sudo ./install-ubuntu-odoo.sh
-```
-
-**2. Configuration SSH après installation**  
-**3. Sécurisation automatique :**
-```bash
-sudo ./install-ubuntu-odoo.sh  # Relancer → détection clés + sécurisation auto
-```
-
-## ⚙️ Configuration Interactive du Script
-
-### **🎛️ Questions Posées (Valeurs par Défaut Disponibles)**
-```
-🔧 CONFIGURATION DES PORTS :
-Port SSH [8173]: 
-Port Webmin [12579]: 
-Port Odoo [9017]: 
-Port PostgreSQL [6792]: 
-
-📦 VERSION ODOO :
-Version Odoo [17.0]: 18.0
-
-🌐 CONFIGURATION RÉSEAU :
-Adresse IP serveur [détectée automatiquement]: 
-
-🔐 CONFIGURATION DES MOTS DE PASSE :
-Mot de passe PostgreSQL [B@hou1983]: 
-Mot de passe Master Odoo [B@hou1983]: 
-```
-
-**Puis installation automatique 5-8 minutes sans interruption !**
-
-## 🖥️ Configuration SSH - Deux Méthodes
-
-### **🔑 MÉTHODE 1 - PuTTY (Windows)**
-
-#### **A. Génération Clé SSH avec PuTTYgen**
-1. **Télécharger** : [PuTTY + PuTTYgen](https://www.putty.org/)
-2. **Lancer PuTTYgen** :
-   - **Type of key** : RSA
-   - **Number of bits** : 4096
-   - **Cliquer Generate** et bouger la souris
-3. **Sauvegarder** :
-   - **Key comment** : `admin@systemerp-client`
-   - **Key passphrase** : (optionnel mais recommandé)
-   - **Save private key** : `systemerp-client.ppk`
-   - **Copier** le texte de la clé publique (zone "Public key for pasting...")
-
-#### **B. Installation Clé sur Serveur**
-```bash
-# Connexion SSH temporaire avec mot de passe
-ssh -p 8173 sysadmin@IP_SERVEUR
-
-# Installation de la clé publique
-mkdir -p ~/.ssh
-nano ~/.ssh/authorized_keys
-# Coller la clé publique PuTTYgen (TOUT le texte)
-# Ctrl+X, Y, ENTRÉE pour sauvegarder
-
-# Permissions correctes
-chmod 700 ~/.ssh
-chmod 600 ~/.ssh/authorized_keys
-exit
-```
-
-#### **C. Configuration Session PuTTY**
-1. **PuTTY Configuration** :
-   - **Host Name** : IP_SERVEUR
-   - **Port** : PORT_SSH_CONFIGURÉ (ex: 8173)
-   - **Connection → SSH → Auth → Credentials** : 
-     - **Browse** → Sélectionner `systemerp-client.ppk`
-   - **Connection → Data** :
-     - **Auto-login username** : `sysadmin`
-2. **Session** :
-   - **Saved Sessions** : `SystemERP-Client`
-   - **Save**
-
-#### **D. Test et Finalisation**
-```bash
-# Test connexion avec clé (session PuTTY sauvée)
-# Si connexion réussie, relancer le script pour sécurisation auto :
-sudo ./install-ubuntu-odoo.sh
-# Le script détectera les clés et désactivera automatiquement les mots de passe SSH
-```
+## 📋 Sommaire
+1. [Prérequis](#1-prérequis)
+2. [Configuration IP Fixe – Serveur](#2-configuration-ip-fixe--serveur)
+3. [Configuration SSH – Poste Client](#3-configuration-ssh--poste-client)
+4. [Lancement du Script d'Installation](#4-lancement-du-script-dinstallation)
+5. [Configuration Interactive](#5-configuration-interactive)
+6. [Configuration IP Fixe – Postes Clients](#6-configuration-ip-fixe--postes-clients)
+7. [Vérifications & Accès](#7-vérifications--accès)
+8. [Maintenance & Dépannage](#8-maintenance--dépannage)
 
 ---
 
-### **🔑 MÉTHODE 2 - Terminal Linux/Ubuntu**
+## 1️⃣ Prérequis
 
-#### **A. Génération Clé SSH (sur votre PC Ubuntu/Linux)**
+### Serveur
+- Ubuntu Server 22.04 LTS fraîchement installé
+- RAM : 8 Go min (16 Go recommandé) | CPU : 4 cœurs | Stockage : 100 Go SSD
+- Accès root ou utilisateur avec `sudo`
+
+### Poste client
+- Linux/Ubuntu : terminal + `ssh`
+- Windows : PuTTY + PuTTYgen (téléchargement : [putty.org](https://www.chiark.greenend.org.uk/~sgtatham/putty/))
+
+### Mise à jour initiale du serveur
 ```bash
-# Sur votre ordinateur Ubuntu/Linux
-ssh-keygen -t rsa -b 4096 -C "admin@systemerp-client"
-
-# Réponses aux questions :
-# Enter file in which to save the key: [ENTRÉE] (défaut)
-# Enter passphrase: [mot de passe optionnel]
-# Enter same passphrase again: [répéter mot de passe]
-
-# Vérification clé créée
-ls -la ~/.ssh/
-# Vous devez voir : id_rsa (privée) et id_rsa.pub (publique)
-```
-
-#### **B. Copie Clé vers Serveur**
-```bash
-# Méthode automatique (recommandée)
-ssh-copy-id -p PORT_SSH sysadmin@IP_SERVEUR
-# Exemple : ssh-copy-id -p 8173 sysadmin@192.168.1.100
-
-# OU méthode manuelle
-# Afficher votre clé publique
-cat ~/.ssh/id_rsa.pub
-
-# Copier le résultat, puis sur le serveur :
-ssh -p PORT_SSH sysadmin@IP_SERVEUR
-mkdir -p ~/.ssh
-nano ~/.ssh/authorized_keys
-# Coller votre clé publique
-chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys
-exit
-```
-
-#### **C. Test Connexion SSH avec Clé**
-```bash
-# Test connexion avec clé (depuis votre PC Ubuntu)
-ssh -p PORT_SSH sysadmin@IP_SERVEUR
-
-# Si connexion réussie sans mot de passe :
-# ✅ Configuration SSH réussie !
-
-# Pour sécurisation automatique, relancer le script :
-sudo ./install-ubuntu-odoo.sh
-# Le script détectera les clés et désactivera automatiquement les mots de passe
-```
-
-#### **D. Configuration SSH Client Permanente (Optionnel)**
-```bash
-# Créer configuration SSH locale pour faciliter connexion
-nano ~/.ssh/config
-
-# Ajouter :
-Host systemerp-client
-    HostName IP_SERVEUR
-    Port PORT_SSH
-    User sysadmin
-    IdentityFile ~/.ssh/id_rsa
-
-# Puis connexion simplifiée :
-ssh systemerp-client
-```
-
----
-
-### **🔒 SÉCURISATION AUTOMATIQUE**
-
-#### **✅ Détection Automatique des Clés**
-Le script **détecte automatiquement** si des clés SSH sont configurées :
-
-1. **Si clés détectées et fonctionnelles** :
-   ```
-   🔒 SÉCURITÉ SSH : MAXIMALE (Mots de passe automatiquement désactivés)
-   ✅ Clés SSH détectées et fonctionnelles
-   ✅ PasswordAuthentication automatiquement désactivé
-   ```
-
-2. **Si clés non configurées** :
-   ```
-   🔑 CONFIGURATION CLÉS SSH REQUISE
-   [Instructions détaillées affichées]
-   PUIS relancer ce script pour sécurisation automatique
-   ```
-
-#### **🔄 Processus Recommandé**
-```bash
-# 1. Installation serveur
-sudo ./install-ubuntu-odoo.sh
-
-# 2. Configuration clés SSH (PuTTY ou Terminal)
-# [Suivre une des méthodes ci-dessus]
-
-# 3. Sécurisation automatique
-sudo ./install-ubuntu-odoo.sh
-# Script détecte les clés et sécurise automatiquement
-
-# 4. Connexion sécurisée uniquement par clés
-```
-
-## 🌐 URLs d'Accès Final
-
-### **🔗 Accès Utilisateur**
-```
-🏢 Odoo ERP          : http://IP_SERVEUR via User admin par default : admin-sys-erp
-🏢 Odoo Direct       : http://IP_SERVEUR:PORT_ODOO
-⚙️ Webmin Admin      : https://IP_SERVEUR:PORT_WEBMIN
-🔑 SSH               : IP_SERVEUR:PORT_SSH
-```
-
-### **📋 Documentation Automatique**
-```
-📖 Guide Installation      : http://IP_SERVEUR/guide-installation.md
-📋 Cahier des Charges     : http://IP_SERVEUR/cahier-des-charges-final.md
-💾 Sauvegarde Locale      : /opt/backup/
-```
-
-**Exemple avec IP 192.168.1.100 :**
-```
-🏢 Odoo ERP          : http://192.168.1.100
-⚙️ Webmin Admin      : https://192.168.1.100:12579
-🔑 SSH PuTTY         : 192.168.1.100:8173
-📋 Cahier des Charges: http://192.168.1.100/cahier-des-charges-final.md
-```
-
-## 📋 Cahier des Charges Automatique
-
-### **🎯 Contenu Généré Automatiquement**
-- ✅ **Informations serveur** (IP, hostname, date installation)
-- ✅ **Tous les ports configurés** pour cette installation
-- ✅ **Tous les mots de passe** utilisés
-- ✅ **Configuration sécurité** (SSH, Firewall, Fail2ban)
-- ✅ **Structure Odoo** et dépendances installées
-- ✅ **URLs d'accès** spécifiques au serveur
-- ✅ **Commandes maintenance** personnalisées
-- ✅ **État des services** au moment de l'installation
-
-### **💾 Téléchargement**
-```bash
-# Immédiatement après installation :
-wget http://IP_SERVEUR/cahier-des-charges-final.md
-
-# Sauvegarde locale pour vos archives :
-cp cahier-des-charges-final.md "Client-$(date +%Y%m%d)-Installation.md"
-```
-
-## 📁 Structure Sécurisée Odoo
-
-```
-/opt/odoo-secure/
-├── addons-custom/          # 🔒 Vos addons personnalisés (chmod 750)
-├── addons-external/        # 🔒 Addons tiers téléchargés (chmod 750)
-├── config/                 # 🔒 Configuration sécurisée (chmod 640)
-│   └── odoo.conf          # Configuration principale
-├── filestore/             # 🔒 Données Odoo (chmod 750)
-└── logs/                  # 📊 Logs isolés (chmod 755)
-```
-
-**Propriétaire unique :** `odoo:odoo` (protection maximale)
-
-### 🧩 **Modules Odoo Supportés Automatiquement**
-Grâce aux dépendances Python installées, ces modules fonctionnent immédiatement :
-
-- ✅ **Cloud Storage** : Dropbox, AWS S3, Nextcloud
-- ✅ **Documents** : Génération PDF, Excel, QR codes
-- ✅ **Intégrations** : SSH/SFTP, API externes
-- ✅ **Backup** : Sauvegarde cloud automatique
-- ✅ **Reporting** : Rapports avancés avec graphiques
-
-## 💾 Sauvegarde Automatique
-
-### **Sauvegarde Quotidienne (02h00)**
-```bash
-# Contenu sauvegardé automatiquement :
-- Base de données PostgreSQL
-- Filestore Odoo sécurisé  
-- Addons personnalisés
-- Configurations système
-- Rétention : 7 jours
-```
-
-### **Localisation :** `/opt/backup/`
-
-## 🔍 Vérification Installation
-
-### **✅ Services Actifs (Tous doivent être "active")**
-```bash
-sudo systemctl status postgresql nginx odoo webmin ssh fail2ban
-```
-
-### **✅ Ports en Écoute**
-```bash
-sudo ss -tlnp | grep -E "(8173|9017|6792|12579)"
-```
-
-**Résultat attendu :**
-```
-LISTEN 0  128  0.0.0.0:8173   (sshd)      # SSH
-LISTEN 0  128  0.0.0.0:9017   (odoo)      # Odoo
-LISTEN 0  128  localhost:6792 (postgres)  # PostgreSQL
-LISTEN 0  128  0.0.0.0:12579  (miniserv)  # Webmin
-```
-
-### **✅ Test Accès Web**
-```bash
-# Test Odoo local
-curl -I http://localhost:9017
-# Doit retourner : HTTP/1.0 303 SEE OTHER
-
-# Test depuis navigateur
-# http://IP_SERVEUR → Page login Odoo
-# https://IP_SERVEUR:12579 → Interface Webmin
-```
-
-### **✅ Vérification Sécurité SSH**
-```bash
-# Vérifier port SSH custom
-sudo ss -tlnp | grep :8173
-
-# Vérifier config SSH
-sudo grep -E "(Port|PasswordAuthentication)" /etc/ssh/sshd_config
-
-# Test clés SSH (depuis votre PC)
-ssh -p 8173 sysadmin@IP_SERVEUR  # Doit fonctionner sans mot de passe
-```
-
-## 🚨 Dépannage Rapide
-
-### **❌ Erreur : "Odoo Inactif"**
-```bash
-# Diagnostic
-sudo systemctl status odoo
-sudo journalctl -u odoo -n 20
-
-# Solution
-sudo chown -R odoo:odoo /opt/odoo-secure/
-sudo systemctl restart odoo
-```
-
-### **❌ Erreur : "Port SSH connection refused"**
-```bash
-# Vérifier firewall
-sudo ufw status
-sudo ufw allow 8173/tcp
-
-# Vérifier service SSH
-sudo systemctl status ssh
-sudo systemctl restart ssh
-```
-
-### **❌ Erreur : "Webmin SSL certificate"**
-```bash
-# Régénérer certificat Webmin
-sudo /usr/share/webmin/miniserv.pl /etc/webmin/miniserv.conf &
-sudo systemctl restart webmin
-```
-
-### **❌ Erreur : "PostgreSQL connection failed"**
-```bash
-# Vérifier PostgreSQL
-sudo systemctl status postgresql
-sudo ss -tlnp | grep 6792
-
-# Redémarrage
-sudo systemctl restart postgresql
-sudo systemctl restart odoo
-```
-
-### **❌ Erreur : "lxml.html.clean ImportError"**
-```bash
-# Diagnostic
-sudo journalctl -u odoo -n 10
-
-# Solution - Installation dépendance manquante
-sudo pip3 install 'lxml[html_clean]' lxml_html_clean
-
-# Redémarrage
-sudo systemctl restart odoo
-sudo systemctl status odoo
-```
-
-### **❌ Erreur : "wkhtmltopdf PDF generation"**
-```bash
-# Test wkhtmltopdf
-wkhtmltopdf --version
-
-# Réinstallation si nécessaire
-sudo apt install -y wkhtmltopdf
-# Ou version officielle :
-wget https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.jammy_amd64.deb
-sudo dpkg -i wkhtmltox_0.12.6.1-2.jammy_amd64.deb
-```
-
-## 🔐 Sécurité Post-Installation
-
-### **Recommandations Critiques**
-1. **Changez** le mot de passe master Odoo
-2. **Configurez** SSL/HTTPS avec Let's Encrypt
-3. **Testez** les sauvegardes régulièrement
-4. **Surveillez** les logs Fail2ban
-5. **Mettez à jour** le système mensuellement
-
-### **Commandes de Maintenance**
-```bash
-# Mise à jour système
 sudo apt update && sudo apt upgrade -y
-
-# Nettoyage logs
-sudo journalctl --vacuum-time=30d
-
-# Test sauvegarde
-/opt/backup/backup-odoo.sh
-
-# Monitoring sécurité
-sudo fail2ban-client status
-sudo ufw status numbered
+sudo apt install -y nano wget curl
 ```
-
-## 📊 Spécifications Techniques
-
-### **Prérequis Serveur**
-- **OS** : Ubuntu Server 22.04 LTS
-- **RAM** : 8GB minimum (16GB recommandé)
-- **CPU** : 4 cores minimum
-- **Stockage** : 100GB SSD minimum
-- **Réseau** : 1 Gbps
-
-### **Compatibilité**
-- **Versions Odoo** : 16.0, 17.0, 18.0
-- **PostgreSQL** : 14+
-- **Python** : 3.10
-- **Nginx** : 1.18+
-- **wkhtmltopdf** : 0.12.6+ (version officielle GitHub)
-
-### **Dépendances Automatiques**
-- **Système** : nano, curl, wget, git, pip3, fontconfig, xfonts
-- **Python** : 18+ packages (dropbox, boto3, paramiko, lxml[html_clean], etc.)
-- **PDF** : wkhtmltopdf version officielle
-- **Sécurité** : ufw, fail2ban, rsyslog avec logs traditionnels
-
-### **Temps d'Installation**
-- **Configuration interactive** : 2-3 minutes
-- **Installation automatique** : 5-8 minutes
-- **Total** : 7-11 minutes selon connexion Internet
-
-## 🔧 Maintenance Post-Installation
-
-### **📅 Tâches Automatiques**
-- **Sauvegarde quotidienne** : 02h00 (base de données + filestore + configs)
-- **Rétention** : 7 jours automatique
-- **Logs** : Rotation automatique via systemd
-
-### **📅 Tâches Manuelles Recommandées**
-
-#### **Hebdomadaires**
-```bash
-# Mise à jour système
-sudo apt update && sudo apt upgrade -y
-
-# Vérification logs erreurs
-sudo journalctl --since "1 week ago" --priority=err
-
-# Test sauvegarde
-ls -la /opt/backup/ && /opt/backup/backup-odoo.sh
-```
-
-#### **Mensuelles**
-```bash
-# Nettoyage logs anciens
-sudo journalctl --vacuum-time=30d
-
-# Vérification espace disque
-df -h
-
-# Test fonctionnement SSH
-ssh -p PORT_SSH sysadmin@localhost
-```
-
-### **🚨 Commandes Support**
-```bash
-# Diagnostic complet
-sudo systemctl --failed
-sudo ss -tlnp | grep -E "(8173|9017|6792|12579)"
-
-# Redémarrage services
-sudo systemctl restart postgresql nginx odoo webmin fail2ban
-
-# Logs temps réel
-sudo journalctl -f
-sudo tail -f /opt/odoo-secure/logs/odoo.log
-```
-
-## 🎯 Cas d'Usage
-
-### **Production Entreprise**
-- ✅ **PME** : 5-50 utilisateurs Odoo
-- ✅ **Données critiques** : Sauvegarde + sécurité maximale
-- ✅ **Accès distant** : SSH clés + Webmin SSL
-- ✅ **Maintenance** : Documentation automatique
-
-### **Multi-Clients**
-- ✅ **Ports différents** par client
-- ✅ **Cahier des charges** spécifique par installation
-- ✅ **Support facilité** : Documentation complète
-- ✅ **Déploiement rapide** : 7-11 minutes par serveur
-
-### **Développement/Test**
-- ✅ **Environnement isolé** : Structure addons sécurisée
-- ✅ **Versions flexibles** : Odoo 16/17/18 au choix
-- ✅ **Configuration rapide** : Script intelligent
-
-## 🆘 Support
-
-### **📋 Logs de Diagnostic**
-```bash
-# Script installation
-/var/log/syslog | grep "install-ubuntu-odoo"
-
-# Configuration SSH
-sudo sshd -T | grep -E "(port|password)"
-
-# Status services
-sudo systemctl list-units --failed
-```
-
-### **📞 Informations Support**
-- **Repository** : [a-bahou/ubuntu-odoo-installer](https://github.com/a-bahou/ubuntu-odoo-installer)
-- **Documentation** : README.md + Cahier des charges auto-généré
-- **Version** : 2.0 (Juillet 2025)
 
 ---
 
-## 🚀 NOUVEAUTÉS VERSION 2.0
+## 2️⃣ Configuration IP Fixe – Serveur
 
-### **⚡ Améliorations Majeures**
-- ✅ **Installation ultra-rapide** : 5-8 minutes (vs 15-30 avant)
-- ✅ **Configuration interactive** intelligente avec valeurs par défaut
-- ✅ **Mode 100% non-interactif** : Aucune interruption après lancement
-- ✅ **Détection automatique SSH** : Sécurisation auto si clés présentes
-- ✅ **Documentation automatique** : Cahier des charges personnalisé généré
+> ⚠️ À faire **avant** l'installation si vous souhaitez une IP statique
 
-### **🔒 Sécurité Renforcée**
-- ✅ **Structure Odoo protégée** : Addons dans `/opt/odoo-secure/` (chmod 750)
-- ✅ **Double méthode SSH** : Support PuTTY (Windows) + Terminal (Linux)
-- ✅ **Firewall intelligent** : Ports customs + protection automatique
-- ✅ **Fail2ban optimisé** : Protection sur port SSH personnalisé
-
-### **📦 Dépendances Complètes**
-- ✅ **wkhtmltopdf officiel** : Version GitHub pour PDF parfaits
-- ✅ **Python packages** : 16+ modules pour tous addons Marketplace
-- ✅ **Cloud ready** : Dropbox, AWS S3, Nextcloud intégrés
-- ✅ **Automation** : paramiko pour SSH/SFTP automatisé
-
-### **📋 Documentation Automatique**
-- ✅ **Cahier des charges** généré avec infos spécifiques installation
-- ✅ **Tous mots de passe** inclus dans documentation
-- ✅ **Téléchargement immédiat** : `http://IP_SERVEUR/cahier-des-charges-final.md`
-- ✅ **Support facilité** : Toutes infos clients centralisées
-
----
-# 🔄 Changement d'Adresse IP Serveur Odoo
-
-## 📍 PARTIE 1 : Configuration sur le Serveur
-
-### 1️⃣ Modifier l'Adresse IP Réseau
-
+### Éditer la configuration réseau
 ```bash
-# Éditer la configuration réseau
 sudo nano /etc/netplan/00-installer-config.yaml
 ```
 
-**Modifier les valeurs suivantes :**
+### Exemple de configuration
 ```yaml
 network:
   version: 2
   ethernets:
-    eth0:  # ou ens18, selon votre interface
+    eth0:  # ou ens18, vérifier avec `ip link`
       dhcp4: no
       addresses:
-        - 192.168.1.150/24  # ⬅️ NOUVELLE IP ICI
+        - 192.168.1.150/24      # ← Votre IP fixe souhaitée
       routes:
         - to: default
-          via: 192.168.1.1  # ⬅️ VOTRE PASSERELLE
+          via: 192.168.1.1      # ← Passerelle
       nameservers:
         addresses: [8.8.8.8, 8.8.4.4, 192.168.1.1]
 ```
 
+### Appliquer et vérifier
 ```bash
-# Appliquer la nouvelle configuration
 sudo netplan apply
-
-# Vérifier que l'IP a bien changé
-ip addr show
+ip addr show  # Vérifier que l'IP est bien appliquée
 ```
 
-### 2️⃣ Mettre à Jour le Fichier Hosts
-
+### Mettre à jour `/etc/hosts`
 ```bash
-# Éditer le fichier hosts
 sudo nano /etc/hosts
 ```
-
-**Remplacer l'ancienne IP par la nouvelle :**
-```bash
-# AVANT :
-192.168.1.100    systemerp.local
-192.168.1.100    systemerp-prod.systemerp.local
-
-# APRÈS :
+```
+# Remplacer l'ancienne IP par la nouvelle :
 192.168.1.150    systemerp.local
 192.168.1.150    systemerp-prod.systemerp.local
 ```
 
-### 3️⃣ Mettre à Jour la Configuration Nginx
+---
 
+## 3️⃣ Configuration SSH – Poste Client
+
+> ✅ Recommandé **avant** le script pour sécurisation automatique
+
+### 🐧 Méthode Linux/Ubuntu
 ```bash
-# Éditer la configuration Nginx
-sudo nano /etc/nginx/sites-available/systemerp.local
+# 1. Générer la clé (sur votre poste)
+ssh-keygen -t ed25519 -f ~/.ssh/labo -C "labo"
+
+# 2. Copier vers le serveur (port 22 par défaut avant installation)
+ssh-copy-id -i ~/.ssh/labo.pub sysadmin@192.168.1.150
+
+# 3. Tester
+ssh -i ~/.ssh/labo sysadmin@192.168.1.150
 ```
 
-**Modifier la ligne server_name :**
-```nginx
-server {
-    listen 80;
-    server_name systemerp.local 192.168.1.150;  # ⬅️ NOUVELLE IP ICI
-    
-    # ... reste de la configuration inchangé
-}
-```
+### 🪟 Méthode Windows (PuTTY)
+1. **PuTTYgen** : RSA 4096 → Generate → Sauvegarder `labo.ppk`
+2. **Copier la clé publique** dans `~/.ssh/authorized_keys` sur le serveur :
+   ```bash
+   mkdir -p ~/.ssh && nano ~/.ssh/authorized_keys
+   # Coller le contenu, puis :
+   chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys
+   ```
+3. **Configurer PuTTY** :
+   - Host : `192.168.1.150` | Port : `22` (puis `8173` après installation)
+   - Connection → SSH → Auth → Credentials → Sélectionner `labo.ppk`
+   - Session → Saved Sessions : `SystemERP` → Save
 
-```bash
-# Tester la configuration
-sudo nginx -t
-
-# Si OK, redémarrer Nginx
-sudo systemctl restart nginx
-```
-
-### 4️⃣ Redémarrer Tous les Services
-
-```bash
-# Redémarrer dans l'ordre
-sudo systemctl restart postgresql
-sudo systemctl restart nginx
-sudo systemctl restart odoo
-sudo systemctl restart webmin
-sudo systemctl restart ssh
-```
-
-### 5️⃣ Vérification Serveur
-
-```bash
-# Vérifier l'IP active
-ip addr show | grep "inet "
-
-# Vérifier que les services écoutent bien
-sudo ss -tlnp | grep -E "(8173|9017|6792|12579|80)"
-
-# Tester l'accès local
-curl -I http://localhost
-```
+> 🔁 Après configuration SSH, relancez le script : il détectera les clés et désactivera automatiquement l'authentification par mot de passe.
 
 ---
 
-## 🖥️ PARTIE 2 : Configuration sur les Machines Clientes
-
-### 📌 Sur Chaque Machine Ubuntu qui Accède au Serveur
-
-#### Méthode Simple : Ajout dans /etc/hosts
+## 4️⃣ Lancement du Script d'Installation
 
 ```bash
-# Ouvrir le fichier hosts
+# Téléchargement
+wget https://raw.githubusercontent.com/a-bahou/ubuntu-odoo-installer/main/install-ubuntu-odoo.sh
+
+# Exécution
+chmod +x install-ubuntu-odoo.sh
+sudo ./install-ubuntu-odoo.sh
+```
+
+> ⚡ Le script s'exécute ensuite **sans interruption** (5-8 minutes).
+
+---
+
+## 5️⃣ Configuration Interactive
+
+| Catégorie | Question | Valeur par défaut |
+|-----------|----------|------------------|
+| 🔧 Ports | SSH / Webmin / Odoo / PostgreSQL | `8173` / `12579` / `9017` / `6792` |
+| 📦 Version | Odoo | `17.0` (16.0/17.0/18.0 disponibles) |
+| 🌐 Réseau | IP serveur | Détection auto (vérifiez qu'elle correspond à votre IP fixe) |
+| 🔐 Mots de passe | PostgreSQL / Master Odoo | `B@hou1983` (personnalisable) |
+
+> ✅ Validez ou personnalisez, puis laissez l'installation se poursuivre.
+
+---
+
+## 6️⃣ Configuration IP Fixe – Postes Clients
+
+> 🔗 Pour accéder au serveur via un nom de domaine local (`systemerp.local`)
+
+### 🐧 Sur Ubuntu/Linux Client
+```bash
+# 1. Éditer le fichier hosts
 sudo nano /etc/hosts
-```
 
-**Ajouter cette ligne à la fin :**
-```
+# 2. Ajouter à la fin :
 192.168.1.150    systemerp.local systemerp-prod.systemerp.local
-```
 
-**Explication :**
-- `192.168.1.150` = l'IP de votre serveur Odoo
-- `systemerp.local` = le nom de domaine pour y accéder facilement
-- Vous pouvez maintenant utiliser `systemerp.local` au lieu de l'IP
-
-```bash
-# Sauvegarder : Ctrl+O puis Entrée
-# Quitter : Ctrl+X
-```
-
-#### ✅ Tester l'Accès Client
-
-```bash
-# 1. Tester la résolution du nom
+# 3. Tester
 ping -c 4 systemerp.local
-
-# 2. Tester l'accès HTTP (Odoo)
 curl -I http://systemerp.local
-
-# 3. Ouvrir dans le navigateur
-firefox http://systemerp.local
-# ou
-google-chrome http://systemerp.local
 ```
 
-#### 🔑 Configuration SSH Pratique (Optionnel)
+### 🪟 Sur Windows Client (PowerShell Admin)
+```powershell
+# 1. Vider le cache DNS
+ipconfig /flushdns
 
+# 2. Ajouter l'entrée hosts
+$hostsPath = "C:\Windows\System32\drivers\etc\hosts"
+$entry = "192.168.1.150    systemerp.local"
+Add-Content -Path $hostsPath -Value $entry -Encoding ASCII -Force
+
+# 3. Vérifier
+Get-Content $hostsPath | Select-String "systemerp.local"
+ping systemerp.local
+nslookup systemerp.local
+```
+
+### 🔑 Configuration SSH Client (Optionnel – Linux/Ubuntu)
 ```bash
-# Créer/éditer la config SSH
 nano ~/.ssh/config
 ```
-
-**Ajouter cette configuration :**
 ```
 Host systemerp
     HostName systemerp.local
     Port 8173
     User sysadmin
-    IdentityFile ~/.ssh/id_rsa
+    IdentityFile ~/.ssh/labo
 ```
-
-**Maintenant vous pouvez vous connecter simplement avec :**
 ```bash
+# Connexion simplifiée ensuite :
 ssh systemerp
 ```
 
 ---
 
-## 🔗 URLs d'Accès Finales
+## 7️⃣ Vérifications & Accès
 
-Après configuration, depuis vos machines clientes :
-
-| Service | Accès par Nom | Accès par IP |
-|---------|---------------|--------------|
-| **Odoo ERP** | `http://systemerp.local` | `http://192.168.1.150` |
-| **Odoo Direct** | `http://systemerp.local:9017` | `http://192.168.1.150:9017` |
-| **Webmin** | `https://systemerp.local:12579` | `https://192.168.1.150:12579` |
-| **SSH PuTTY** | `systemerp.local:8173` | `192.168.1.150:8173` |
-
----
-
-## 🔍 Script de Vérification Complète
-
-**Sur le serveur :**
+### ✅ Sur le serveur
 ```bash
-#!/bin/bash
-echo "📍 IP Serveur Actuelle :"
-hostname -I
+# Services actifs
+sudo systemctl status postgresql nginx odoo webmin ssh fail2ban
 
-echo ""
-echo "📋 Configuration /etc/hosts :"
-grep systemerp /etc/hosts
+# Ports en écoute
+sudo ss -tlnp | grep -E "(8173|9017|6792|12579)"
 
-echo ""
-echo "🌐 Configuration Nginx :"
-grep server_name /etc/nginx/sites-available/systemerp.local
-
-echo ""
-echo "📊 État des Services :"
-systemctl is-active postgresql nginx odoo webmin ssh | paste -s -d ' '
-
-echo ""
-echo "🚪 Ports Ouverts :"
-sudo ss -tlnp | grep -E "(8173|9017|80)" | awk '{print $4}'
+# Accès local
+curl -I http://localhost:9017  # Doit retourner : HTTP/1.0 303 SEE OTHER
 ```
 
-**Sur les clients :**
+### 🔗 URLs d'accès (depuis clients)
+| Service | URL | Identifiants par défaut |
+|---------|-----|------------------------|
+| 🏢 Odoo ERP | `http://systemerp.local` | User: `admin` / Pwd: `admin-sys-erp` |
+| ⚙️ Webmin | `https://systemerp.local:12579` | root / mot de passe système |
+| 🔑 SSH | `systemerp.local:8173` | Clé SSH requise |
+
+### 📄 Documentation auto-générée
 ```bash
-#!/bin/bash
-echo "🔍 Test Accès SystemERP"
-echo ""
+# Téléchargement immédiat
+wget http://systemerp.local/cahier-des-charges-final.md
+wget http://systemerp.local/guide-installation.md
 
-echo "1️⃣ Résolution DNS :"
-ping -c 2 systemerp.local 2>&1 | grep -E "bytes from|Unreachable"
-
-echo ""
-echo "2️⃣ Accès HTTP Odoo :"
-curl -s -o /dev/null -w "Status: %{http_code}\n" http://systemerp.local
-
-echo ""
-echo "3️⃣ Configuration locale :"
-grep systemerp /etc/hosts
+# Sauvegarde locale
+cp cahier-des-charges-final.md "Client-$(date +%Y%m%d)-Installation.md"
 ```
 
 ---
 
-## 🚨 Troubleshooting
+## 8️⃣ Maintenance & Dépannage
 
-### ❌ Problème : "systemerp.local" ne se résout pas
-
+### 🔄 Tâches recommandées
 ```bash
-# Sur le client, vérifier /etc/hosts
-cat /etc/hosts | grep systemerp
+# Hebdomadaire
+sudo apt update && sudo apt upgrade -y
+sudo journalctl --since "1 week ago" --priority=err
 
-# Si vide, ajouter manuellement
-echo "192.168.1.150    systemerp.local" | sudo tee -a /etc/hosts
-
-# Vider le cache DNS
-sudo systemd-resolve --flush-caches
+# Mensuel
+sudo journalctl --vacuum-time=30d
+df -h  # Vérifier espace disque
+/opt/backup/backup-odoo.sh  # Test sauvegarde
 ```
 
-### ❌ Problème : Nginx retourne erreur 502
+### 🚨 Dépannage express
+| Problème | Solution |
+|----------|----------|
+| ❌ Odoo inactif | `sudo systemctl restart odoo` + `journalctl -u odoo -n 20` |
+| ❌ SSH refusé | `sudo ufw allow 8173/tcp` + `sudo systemctl restart ssh` |
+| ❌ Webmin SSL | `sudo systemctl restart webmin` |
+| ❌ lxml.html.clean ImportError | `sudo pip3 install 'lxml[html_clean]' lxml_html_clean` |
+| ❌ wkhtmltopdf PDF | `sudo apt install -y wkhtmltopdf` ou version officielle GitHub |
+| ❌ "systemerp.local" non résolu (client) | Vérifier `/etc/hosts` ou `C:\Windows\System32\drivers\etc\hosts` |
 
-```bash
-# Sur le serveur, vérifier qu'Odoo tourne
-sudo systemctl status odoo
+### 🔐 Sécurité post-installation
+- [ ] Changer le mot de passe master Odoo
+- [ ] Configurer Let's Encrypt pour HTTPS (`certbot`)
+- [ ] Tester la restauration de sauvegarde
+- [ ] Surveiller Fail2ban : `sudo fail2ban-client status`
 
-# Vérifier les logs
-sudo journalctl -u odoo -n 50
+---
 
-# Redémarrer Odoo
-sudo systemctl restart odoo
+## 📁 Structure Sécurisée Odoo
 ```
-
-### ❌ Problème : Connexion SSH refusée
-
-```bash
-# Vérifier que le firewall autorise le port SSH
-sudo ufw status | grep 8173
-
-# Si absent, ajouter
-sudo ufw allow 8173/tcp
-sudo ufw reload
+/opt/odoo-secure/
+├── addons-custom/     # Vos addons (chmod 750)
+├── addons-external/   # Addons tiers (chmod 750)
+├── config/odoo.conf   # Config sécurisée (chmod 640)
+├── filestore/         # Données (chmod 750)
+└── logs/              # Logs (chmod 755)
+# Propriétaire : odoo:odoo
 ```
 
 ---
 
-## 📝 Résumé Rapide
+> ✅ **Installation terminée** – Votre environnement Odoo est prêt pour la production.  
+> 🔄 *Pour changer l'IP ultérieurement* : modifier `/etc/netplan/`, `/etc/hosts`, Nginx, puis redémarrer les services et mettre à jour les clients.
 
-**🔧 Sur le Serveur (3 fichiers à modifier) :**
-1. `/etc/netplan/00-installer-config.yaml` → Nouvelle IP
-2. `/etc/hosts` → Remplacer IP
-3. `/etc/nginx/sites-available/systemerp.local` → Nouvelle IP
-4. Redémarrer services
-
-**💻 Sur Chaque Client (1 fichier) :**
-1. `/etc/hosts` → Ajouter ligne `IP_SERVEUR systemerp.local`
-2. Tester avec `ping systemerp.local`
-
-✅ Ajout de systemerp.local sur le poste Windows – Résultat : OK
-
-1- Puis vidage du cache DNS :
-
-ipconfig /flushdns
-
-2- Ajout manuel de l’entrée DNS locale via modification du fichier hosts :
-
-$hostsContent = Get-Content "C:\Windows\System32\drivers\etc\hosts"
-
-$hostsContent += "192.168.100.240 systemerp.local"
-
-Set-Content -Path "C:\Windows\System32\drivers\etc\hosts" -Value $hostsContent -Encoding ASCII -Force
-
-3- Test l'acces
-
-Get-Content ... | Select-String "systemerp.local"
-
-ping systemerp.local
-
-nslookup systemerp.local
-
-
-**🚀 Installation automatisée développée pour la production critique**  
-**🔒 Sécurité maximale + Rapidité d'installation optimisée**  
-**📅 Version 2.0 - Juillet 2025**
+*Document généré pour un déploiement rapide, sécurisé et documenté – v2.0 – Juillet 2025*
