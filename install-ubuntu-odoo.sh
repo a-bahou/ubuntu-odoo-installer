@@ -786,6 +786,19 @@ log "✅ Nginx, Odoo $ODOO_VERSION et Webmin installés et configurés"
 
 log "ÉTAPE 5/5: Sécurisation finale du système"
 
+
+# Vérification / Création de l'utilisateur admin SSH
+log "Vérification de l'utilisateur administrateur : $ADMIN_USER..."
+if id "$ADMIN_USER" &>/dev/null; then
+    log "✅ Utilisateur $ADMIN_USER déjà existant — aucune création nécessaire."
+else
+    log "⚠️  Utilisateur $ADMIN_USER introuvable. Création en cours..."
+    useradd -m -s /bin/bash -G sudo "$ADMIN_USER"
+    echo "$ADMIN_USER:$DEFAULT_PASSWORD" | chpasswd
+    log "✅ Utilisateur $ADMIN_USER créé (mot de passe provisoire : $DEFAULT_PASSWORD)"
+    log "⚠️  Pensez à changer ce mot de passe dès la première connexion !"
+fi
+
 # Configuration SSH sécurisé (garde les mots de passe pour l'instant)
 log "Configuration SSH sécurisé sur le port $SSH_PORT..."
 cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup
@@ -820,7 +833,7 @@ AcceptEnv LANG LC_*
 Subsystem sftp /usr/lib/openssh/sftp-server
 EOF
 
-systemctl restart sshd || error "Échec redémarrage SSH"
+systemctl restart ssh || error "Échec redémarrage SSH"
 
 # Configuration Fail2ban
 log "Configuration de Fail2ban..."
@@ -1327,7 +1340,7 @@ if [ -f "/home/$ADMIN_USER/.ssh/authorized_keys" ] && [ -s "/home/$ADMIN_USER/.s
         
         # Désactivation des mots de passe SSH
         sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
-        systemctl restart sshd
+        systemctl restart ssh
         
         log "🔒 Mots de passe SSH désactivés automatiquement - Sécurité maximale activée"
         SSH_PASSWORD_DISABLED=true
