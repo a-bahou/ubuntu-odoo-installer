@@ -765,19 +765,34 @@ else
     done
 fi
 
-# Installation Webmin
+# Installation Webmin (méthode officielle webmin-setup-repo.sh)
 log "Installation de Webmin..."
-wget -qO - http://www.webmin.com/jcameron-key.asc | apt-key add -
-echo "deb http://download.webmin.com/download/repository sarge contrib" | tee -a /etc/apt/sources.list
-DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt install -y webmin -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" || error "Échec installation Webmin"
-
+ 
+if dpkg -l webmin 2>/dev/null | grep -q '^ii'; then
+    log "✅ Webmin déjà installé — installation ignorée, passage à la configuration."
+else
+    log "Webmin non détecté, configuration du dépôt officiel..."
+    curl -fsSL -o /tmp/webmin-setup-repo.sh https://raw.githubusercontent.com/webmin/webmin/master/webmin-setup-repo.sh \
+        || error "Échec téléchargement du script officiel Webmin"
+ 
+    # Le script demande une confirmation (y/N) ; on la fournit automatiquement (mode non-interactif)
+    echo y | sh /tmp/webmin-setup-repo.sh || error "Échec configuration du dépôt Webmin"
+ 
+    log "Installation du paquet Webmin..."
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --install-recommends webmin \
+        -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" \
+        || error "Échec installation Webmin"
+ 
+    rm -f /tmp/webmin-setup-repo.sh
+fi
+ 
 # Configuration port Webmin
 log "Configuration du port Webmin: $WEBMIN_PORT"
 sed -i "s/port=10000/port=$WEBMIN_PORT/" /etc/webmin/miniserv.conf
 sed -i "s/listen=10000/listen=$WEBMIN_PORT/" /etc/webmin/miniserv.conf
-
+ 
 systemctl restart webmin || error "Échec redémarrage Webmin"
-
+ 
 log "✅ Nginx, Odoo $ODOO_VERSION et Webmin installés et configurés"
 
 #################################################################################
