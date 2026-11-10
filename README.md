@@ -1,8 +1,9 @@
 # 📘 Manuel d'Installation Complet – Ubuntu Server + Odoo Sécurisé
-*Script automatisé v2.0 – Odoo 16/17/18 | Ubuntu 22.04 LTS*
+*Script automatisé v2.4 – Odoo 14/15/16/17/18/19 | Ubuntu 22.04 LTS + 24.04 LTS*
 
-> ⏱️ Temps total : **7-11 minutes** (serveur) + **2 min** (par client)  
-> 🔐 Sécurité : SSH clés, UFW, Fail2ban, ports personnalisés
+> ⏱️ Temps total : **15-30 minutes** (serveur) + **2 min** (par client)  
+> 🔐 Sécurité : SSH clés, UFW, Fail2ban, ports personnalisés  
+> ✅ Compatible Ubuntu 24.04 LTS (Noble) — SSH socket systemd géré automatiquement
 
 ---
 
@@ -21,9 +22,11 @@
 ## 1️⃣ Prérequis
 
 ### Serveur
-- Ubuntu Server 22.04 LTS fraîchement installé
+- Ubuntu Server **22.04 LTS (Jammy)** ou **24.04 LTS (Noble)** fraîchement installé
 - RAM : 8 Go min (16 Go recommandé) | CPU : 4 cœurs | Stockage : 100 Go SSD
 - Accès root ou utilisateur avec `sudo`
+
+> ⚠️ **Ubuntu 24.04 — changement important** : depuis Ubuntu 23.04, le port SSH est contrôlé par le socket systemd (`ssh.socket`) et non par `sshd_config` seul. Le script détecte automatiquement la version et adapte la configuration. Ne pas modifier `sshd_config` manuellement sur Ubuntu 24.04 sans reconfigurer le socket.
 
 ### Poste client
 - Linux/Ubuntu : terminal + `ssh`
@@ -133,10 +136,12 @@ sudo ./install-ubuntu-odoo.sh
 | Catégorie | Question | Valeur par défaut |
 |-----------|----------|------------------|
 | 🔧 Ports | SSH / Webmin / Odoo / PostgreSQL | `8173` / `12579` / `9017` / `6792` |
-| 📦 Version | Odoo | `17.0` (16.0/17.0/18.0 disponibles) |
-| 🌐 Réseau | IP serveur | Détection auto (vérifiez qu'elle correspond à votre IP fixe) |
-| 🔐 Mots de passe | PostgreSQL / Master Odoo | `B@hou1983` (personnalisable) |
+| 📦 Version | Odoo | `17.0` (versions 14.0 à 19.0 disponibles) |
+| 🌐 Réseau | IP serveur / Passerelle | Détection automatique |
+| 🌐 Domaine | Domaine local ou public | `systemerp.local` |
+| 🔐 Mots de passe | PostgreSQL / Master Odoo | Générés aléatoirement à chaque exécution |
 
+> ✅ Un mot de passe sécurisé est généré automatiquement et affiché avant confirmation. Notez-le avant de valider.  
 > ✅ Validez ou personnalisez, puis laissez l'installation se poursuivre.
 
 ---
@@ -207,20 +212,22 @@ curl -I http://localhost:9017  # Doit retourner : HTTP/1.0 303 SEE OTHER
 ```
 
 ### 🔗 URLs d'accès (depuis clients)
-| Service | URL | Identifiants par défaut |
-|---------|-----|------------------------|
-| 🏢 Odoo ERP | `http://systemerp.local` | User: `admin` / Pwd: `admin-sys-erp` |
-| ⚙️ Webmin | `https://systemerp.local:12579` | root / mot de passe système |
-| 🔑 SSH | `systemerp.local:8173` | Clé SSH requise |
+| Service | URL |
+|---------|-----|
+| 🏢 Odoo ERP | `http://<votre-domaine>` |
+| ⚙️ Webmin | `https://<votre-domaine>:<port-webmin>` |
+| 🔑 SSH | `<ip-serveur>:<port-ssh>` |
 
-### 📄 Documentation auto-générée
+> 🔐 Les identifiants sont définis lors de l'installation interactive. Ne les consignez pas dans un dépôt public.
+
+### 📄 Documentation générée sur le serveur
 ```bash
-# Téléchargement immédiat
-wget http://systemerp.local/cahier-des-charges-final.md
-wget http://systemerp.local/guide-installation.md
+# Accès local sur le serveur
+ls /opt/backup/CAHIER-DES-CHARGES-FINAL-*.md
+ls /opt/backup/GUIDE-INSTALLATION-SystemERP.md
 
-# Sauvegarde locale
-cp cahier-des-charges-final.md "Client-$(date +%Y%m%d)-Installation.md"
+# Récupération depuis votre poste (SSH)
+scp -P 8173 sysadmin@<ip-serveur>:/opt/backup/CAHIER-DES-CHARGES-FINAL-*.md .
 ```
 
 ---
@@ -273,4 +280,5 @@ df -h  # Vérifier espace disque
 > ✅ **Installation terminée** – Votre environnement Odoo est prêt pour la production.  
 > 🔄 *Pour changer l'IP ultérieurement* : modifier `/etc/netplan/`, `/etc/hosts`, Nginx, puis redémarrer les services et mettre à jour les clients.
 
-*Document généré pour un déploiement rapide, sécurisé et documenté – v2.0 – Juillet 2025*
+*Document généré pour un déploiement rapide, sécurisé et documenté – v2.4 – Novembre 2026*  
+*Testé sur Ubuntu 22.04 LTS (Jammy) et Ubuntu 24.04 LTS (Noble)*

@@ -2,9 +2,10 @@
 
 #################################################################################
 # SCRIPT D'INSTALLATION AUTOMATISÉE - UBUNTU SERVER + ODOO SÉCURISÉ
-# Version: 2.3 - Correctif Odoo 19.0 sur Ubuntu 22.04 (Jammy)
-# Date: Août 2025 - Support Odoo 14.0, 15.0, 16.0, 17.0, 18.0, 19.0
-# Corrections: lxml, PostgreSQL port, Database Manager
+# Version: 2.4.1 - Support Ubuntu 24.04 LTS (Noble) — SSH socket systemd (fix ListenStream IP explicite)
+# Date: Novembre 2026 - Support Odoo 14.0, 15.0, 16.0, 17.0, 18.0, 19.0
+# Compatibilité: Ubuntu 22.04 LTS (Jammy) + Ubuntu 24.04 LTS (Noble)
+# Corrections: lxml, PostgreSQL port, Database Manager, SSH socket Ubuntu 24.04
 #################################################################################
 
 # Couleurs pour les logs
@@ -36,8 +37,8 @@ info() {
 # CONFIGURATION INTERACTIVE - VALEURS PAR DÉFAUT
 #################################################################################
 
-# Paramètres réseau (fixes)
-DOMAIN_LOCAL="systemerp.local"
+# Paramètres réseau
+DOMAIN_LOCAL=""  # Défini de manière interactive
 SERVER_NAME="systemerp-prod"
 ADMIN_USER="sysadmin"
 ODOO_USER="sys-erp"
@@ -49,7 +50,7 @@ DEFAULT_ODOO_PORT="9017"
 DEFAULT_ODOO_LONGPOLL_PORT="8072"
 DEFAULT_POSTGRES_PORT="6792"
 DEFAULT_ODOO_VERSION="17.0"
-DEFAULT_PASSWORD="B@hou1983"
+DEFAULT_PASSWORD=$(openssl rand -base64 12 | tr -dc 'A-Za-z0-9!@#$' | head -c 14)
 
 # Interface réseau (auto-détectée)
 NETWORK_INTERFACE=$(ip route | grep default | awk '{print $5}' | head -n1)
@@ -105,6 +106,22 @@ CURRENT_IP=${CURRENT_IP:-$DETECTED_IP}
 
 read -p "Passerelle [$DETECTED_GATEWAY]: " GATEWAY
 GATEWAY=${GATEWAY:-$DETECTED_GATEWAY}
+
+# Configuration domaine
+echo ""
+echo "🌐 CONFIGURATION DOMAINE :"
+echo "   Réseau local → nom .local  (ex: systemerp.local)"
+echo "   VPS public   → votre FQDN  (ex: erp.monentreprise.com)"
+DEFAULT_DOMAIN="systemerp.local"
+read -p "Nom de domaine [$DEFAULT_DOMAIN]: " DOMAIN_INPUT
+DOMAIN_LOCAL=${DOMAIN_INPUT:-$DEFAULT_DOMAIN}
+# Détecter si domaine public (ni .local ni IP brute)
+if [[ "$DOMAIN_LOCAL" =~ \.local$ ]] || [[ "$DOMAIN_LOCAL" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    DOMAIN_IS_PUBLIC=false
+else
+    DOMAIN_IS_PUBLIC=true
+    info "ℹ️  Domaine public détecté — Let's Encrypt sera tenté après Nginx."
+fi
 
 # Configuration des mots de passe
 echo ""
@@ -288,9 +305,22 @@ log "Réseau local détecté : $LOCAL_NETWORK (restriction des accès internes)"
 
 # Configuration UFW
 log "Configuration du firewall UFW..."
+
+# Mémoriser le port SSH actuellement en écoute AVANT le reset UFW
+CURRENT_SSH_PORT=$(ss -tlnp 2>/dev/null | awk '/sshd/{match($4,/:([0-9]+)$/,a);if(a[1])print a[1]}' | head -1)
+[[ -z "$CURRENT_SSH_PORT" ]] && CURRENT_SSH_PORT=22
+log "Port SSH actuel détecté : $CURRENT_SSH_PORT"
+
 ufw --force reset
 ufw default deny incoming
 ufw default allow outgoing
+
+# Ouvrir le port SSH actuel EN PREMIER pour ne pas se verrouiller hors du serveur
+# Ce port sera retiré après vérification que sshd écoute bien sur le nouveau port
+if [[ "$CURRENT_SSH_PORT" != "$SSH_PORT" ]]; then
+    ufw allow $CURRENT_SSH_PORT/tcp comment 'SSH actuel - temporaire migration'
+    log "Port SSH actuel $CURRENT_SSH_PORT maintenu ouvert pendant la migration"
+fi
 
 # Ouverture des ports personnalisés
 log "Ouverture du port SSH: $SSH_PORT"
@@ -484,6 +514,22 @@ ln -sf /etc/nginx/sites-available/$DOMAIN_LOCAL /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 
 nginx -t && systemctl restart nginx || error "Échec configuration Nginx"
+
+# Configuration Let's Encrypt pour domaine public
+if [[ "$DOMAIN_IS_PUBLIC" == "true" ]]; then
+    log "Domaine public — tentative Let's Encrypt pour $DOMAIN_LOCAL..."
+    warning "⚠️  Le domaine $DOMAIN_LOCAL doit pointer sur $CURRENT_IP pour que certbot réussisse."
+    if certbot --nginx -d "$DOMAIN_LOCAL" --non-interactive --agree-tos \
+               --email "admin@${DOMAIN_LOCAL#*.}" --redirect 2>/dev/null; then
+        log "✅ Certificat Let's Encrypt configuré pour $DOMAIN_LOCAL"
+        (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet") | crontab -
+        log "Renouvellement automatique certbot ajouté au cron (03h00 quotidien)"
+    else
+        warning "Certbot a échoué (DNS probablement pas encore propagé)."
+        warning "Pour configurer HTTPS ultérieurement :"
+        warning "  sudo certbot --nginx -d $DOMAIN_LOCAL"
+    fi
+fi
 
 # Installation Odoo avec méthode correcte selon la version
 log "🔄 Installation d'Odoo $ODOO_VERSION (méthode adaptée)..."
@@ -848,7 +894,64 @@ AcceptEnv LANG LC_*
 Subsystem sftp /usr/lib/openssh/sftp-server
 EOF
 
-systemctl restart ssh || error "Échec redémarrage SSH"
+# ── Redémarrage SSH adapté à la version Ubuntu ──────────────────────────────
+. /etc/os-release
+UBUNTU_MAJOR=$(echo "$VERSION_ID" | cut -d. -f1)
+
+if [[ "$UBUNTU_MAJOR" -ge 23 ]]; then
+    log "Ubuntu $VERSION_ID détecté : port SSH géré par socket systemd (>= 23.04)"
+    log "Configuration du drop-in ssh.socket pour écouter sur le port $SSH_PORT..."
+    mkdir -p /etc/systemd/system/ssh.socket.d/
+    cat > /etc/systemd/system/ssh.socket.d/listen.conf << SOCKETEOF
+[Socket]
+ListenStream=
+ListenStream=0.0.0.0:$SSH_PORT
+ListenStream=[::]:$SSH_PORT
+BindIPv6Only=ipv6-only
+SOCKETEOF
+    systemctl daemon-reload
+    systemctl restart ssh.socket || error "Échec redémarrage ssh.socket"
+    systemctl restart ssh        || warning "Avertissement redémarrage ssh.service"
+    sleep 3
+    log "Socket ssh.socket reconfiguré sur le port $SSH_PORT"
+else
+    log "Ubuntu $VERSION_ID détecté : redémarrage SSH classique via sshd_config"
+    systemctl restart ssh || error "Échec redémarrage SSH"
+    sleep 3
+fi
+
+# ── VÉRIFICATION CRITIQUE : sshd écoute-t-il sur le nouveau port ? ───────────
+log "Vérification que sshd écoute sur le port $SSH_PORT..."
+sleep 2
+if ss -tln | grep -q ":${SSH_PORT} \|:${SSH_PORT}$"; then
+    log "✅ SSH écoute correctement sur le port $SSH_PORT"
+
+    # Supprimer le port SSH temporaire d'UFW maintenant que le nouveau est actif
+    if [[ "$CURRENT_SSH_PORT" != "$SSH_PORT" ]]; then
+        ufw delete allow "${CURRENT_SSH_PORT}/tcp" 2>/dev/null || true
+        log "Port SSH temporaire $CURRENT_SSH_PORT retiré d'UFW (migration réussie)"
+    fi
+else
+    # ── GARDE-FOU : SSH n'écoute pas sur le nouveau port ─────────────────────
+    echo ""
+    warning "╔═══════════════════════════════════════════════════════════════╗"
+    warning "║  GARDE-FOU ACTIVÉ — sshd n'écoute pas sur le port $SSH_PORT  ║"
+    warning "╚═══════════════════════════════════════════════════════════════╝"
+    echo ""
+    # Réouvrir le port d'origine dans UFW pour garder l'accès administrateur
+    ufw allow "${CURRENT_SSH_PORT}/tcp" comment 'SSH fallback securite' 2>/dev/null || true
+    ufw reload 2>/dev/null || true
+    warning "Port $CURRENT_SSH_PORT réouvert dans UFW — le serveur reste accessible."
+    warning ""
+    warning "Diagnostics manuels :"
+    warning "  ss -tlnp | grep sshd"
+    warning "  journalctl -u ssh -n 20"
+    if [[ "$UBUNTU_MAJOR" -ge 23 ]]; then
+        warning "  systemctl status ssh.socket"
+        warning "  cat /etc/systemd/system/ssh.socket.d/listen.conf"
+    fi
+    error "Installation interrompue par le garde-fou SSH. Aucun verrouillage n'a eu lieu."
+fi
 
 # Configuration Fail2ban
 log "Configuration de Fail2ban..."
@@ -1285,7 +1388,7 @@ sudo ss -tlnp | grep -E "(SSH_PORT_VALUE|ODOO_PORT_VALUE|POSTGRES_PORT_VALUE|WEB
 
 ---
 
-**📥 Téléchargement disponible sur :** http://CURRENT_IP_VALUE/cahier-des-charges-final.md
+**📁 Document disponible localement sur le serveur :** /opt/backup/
 
 EOFCAHIER
 
@@ -1335,12 +1438,7 @@ sed -i "s/CPU_USAGE_VALUE/$CPU_USAGE/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(d
 sed -i "s/RAM_USAGE_VALUE/$RAM_USAGE/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
 sed -i "s/DISK_USAGE_VALUE/$DISK_USAGE/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
 
-# Créer lien web pour téléchargement du cahier des charges
-ln -sf /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md /var/www/html/cahier-des-charges-final.md
-
-# Documentation accessible via web
-log "Documentation accessible via téléchargement web..."
-ln -sf /opt/backup/GUIDE-INSTALLATION-SystemERP.md /var/www/html/guide-installation.md
+log "Documentation locale sauvegardée dans /opt/backup/"
 
 # NOUVELLE FONCTIONNALITÉ : Vérification et désactivation automatique des mots de passe SSH
 log "Vérification des clés SSH et sécurisation automatique..."
@@ -1442,10 +1540,9 @@ echo "   🔒 Logs sécurisés       : /opt/odoo-secure/logs/"
 echo "   🔒 Filestore sécurisé   : /opt/odoo-secure/filestore/"
 echo ""
 echo "📁 DOCUMENTATION SAUVEGARDÉE :"
-echo "   📋 Cahier des charges final : /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md"
-echo "   🌐 Téléchargement direct     : http://$CURRENT_IP/cahier-des-charges-final.md"
-echo "   📖 Guide installation       : http://$CURRENT_IP/guide-installation.md"
-echo "   💾 Sauvegarde locale        : Disponible dans /opt/backup/"
+echo "   📋 Cahier des charges : /opt/backup/CAHIER-DES-CHARGES-FINAL-*.md"
+echo "   📖 Guide installation : /opt/backup/GUIDE-INSTALLATION-SystemERP.md"
+echo "   💾 Sauvegardes        : /opt/backup/"
 echo ""
 echo "🔐 INFORMATIONS IMPORTANTES SAUVEGARDÉES :"
 echo "   👤 Utilisateur admin        : $ADMIN_USER"
