@@ -2,7 +2,7 @@
 
 #################################################################################
 # SCRIPT D'INSTALLATION AUTOMATISÉE - UBUNTU SERVER + ODOO SÉCURISÉ
-# Version: 2.4.1 - Support Ubuntu 24.04 LTS (Noble) — SSH socket systemd (fix ListenStream IP explicite)
+# Version: 2.5 - Support Ubuntu 24.04 LTS (Noble) — 16 corrections M-022 appliquées
 # Date: Novembre 2026 - Support Odoo 14.0, 15.0, 16.0, 17.0, 18.0, 19.0
 # Compatibilité: Ubuntu 22.04 LTS (Jammy) + Ubuntu 24.04 LTS (Noble)
 # Corrections: lxml, PostgreSQL port, Database Manager, SSH socket Ubuntu 24.04
@@ -122,6 +122,13 @@ else
     DOMAIN_IS_PUBLIC=true
     info "ℹ️  Domaine public détecté — Let's Encrypt sera tenté après Nginx."
 fi
+
+# IP à ne pas bannir par Fail2ban (adresse d'administration)
+echo ""
+echo "🛡️  FAIL2BAN — IP À EXCLURE DU BANNISSEMENT :"
+echo "   (votre adresse IP d'administration, ex: 203.0.113.42 — laissez vide pour ignorer)"
+read -p "IP à ne pas bannir [vide]: " ADMIN_IGNOREIP
+ADMIN_IGNOREIP=${ADMIN_IGNOREIP:-}
 
 # Configuration des mots de passe
 echo ""
@@ -298,10 +305,20 @@ log "✅ Outils système et dépendances Python installés avec succès"
 
 log "ÉTAPE 2/5: Configuration firewall avec tous les ports personnalisés"
 
-# Détection du réseau local (utilisé pour restreindre Odoo, PostgreSQL et Webmin)
-# On dérive le /24 depuis $CURRENT_IP déjà validé par l'utilisateur
+# Détection du réseau local (RFC 1918 : 10.x, 172.16-31.x, 192.168.x)
+# Sur IP publique, ne PAS ouvrir Odoo/Webmin au /24 voisin (hébergeur)
 LOCAL_NETWORK=$(echo $CURRENT_IP | awk -F'.' '{print $1"."$2"."$3".0/24"}')
-log "Réseau local détecté : $LOCAL_NETWORK (restriction des accès internes)"
+IP_FIRST=$(echo $CURRENT_IP | cut -d. -f1)
+IP_SECOND=$(echo $CURRENT_IP | cut -d. -f2)
+if [[ "$IP_FIRST" == "10" ]] || \
+   [[ "$IP_FIRST" == "192" && "$IP_SECOND" == "168" ]] || \
+   [[ "$IP_FIRST" == "172" && "$IP_SECOND" -ge 16 && "$IP_SECOND" -le 31 ]]; then
+    IP_IS_PRIVATE=true
+    log "IP privée (RFC 1918) — règles réseau local actives : $LOCAL_NETWORK"
+else
+    IP_IS_PRIVATE=false
+    warning "⚠️  IP publique détectée ($CURRENT_IP) — Odoo et Webmin NE seront PAS ouverts au réseau /24 (voisinage hébergeur). Accès Webmin par tunnel SSH uniquement."
+fi
 
 # Configuration UFW
 log "Configuration du firewall UFW..."
@@ -330,14 +347,18 @@ log "Ouverture des ports HTTP/HTTPS"
 ufw allow 80/tcp comment 'HTTP'
 ufw allow 443/tcp comment 'HTTPS'
 
-log "Ouverture du port Odoo: $ODOO_PORT (réseau local uniquement)"
-ufw allow from $LOCAL_NETWORK to any port $ODOO_PORT comment 'Odoo Local Network Only'
-
 log "Ouverture du port PostgreSQL: $POSTGRES_PORT (localhost uniquement)"
 ufw allow from 127.0.0.1 to any port $POSTGRES_PORT comment 'PostgreSQL Localhost Only'
 
-log "Ouverture du port Webmin: $WEBMIN_PORT (réseau local uniquement)"
-ufw allow from $LOCAL_NETWORK to any port $WEBMIN_PORT comment 'Webmin Local Network Only'
+if [[ "$IP_IS_PRIVATE" == "true" ]]; then
+    log "Ouverture du port Odoo: $ODOO_PORT (réseau local uniquement : $LOCAL_NETWORK)"
+    ufw allow from $LOCAL_NETWORK to any port $ODOO_PORT comment 'Odoo Local Network Only'
+    log "Ouverture du port Webmin: $WEBMIN_PORT (réseau local uniquement : $LOCAL_NETWORK)"
+    ufw allow from $LOCAL_NETWORK to any port $WEBMIN_PORT comment 'Webmin Local Network Only'
+else
+    log "IP publique : port Odoo $ODOO_PORT accessible uniquement via proxy Nginx (80/443)"
+    log "IP publique : Webmin ($WEBMIN_PORT) non ouvert — accès par tunnel SSH : ssh -L $WEBMIN_PORT:localhost:$WEBMIN_PORT -p $SSH_PORT $ADMIN_USER@$CURRENT_IP"
+fi
 
 # Activation firewall
 ufw --force enable || error "Échec activation firewall"
@@ -470,6 +491,11 @@ server {
     proxy_read_timeout 300s;
     send_timeout 300s;
     
+    # Blocage gestionnaire de bases de données Odoo (accès public interdit)
+    location ~* ^/web/database/ {
+        return 404;
+    }
+
     # Redirection vers Odoo
     location / {
         proxy_pass http://127.0.0.1:$ODOO_PORT;
@@ -670,9 +696,9 @@ db_password = $POSTGRES_USER_PASS
 # Mot de passe master Odoo
 admin_passwd = $ODOO_MASTER_PASS
 
-# Interface base de données
-list_db = True
-dbfilter = ^.*$
+# Interface base de données (désactivée pour sécurité)
+list_db = False
+dbfilter = ^$ODOO_USER\$
 db_template = template0
 proxy_mode = True
 
@@ -860,6 +886,24 @@ else
     log "⚠️  Pensez à changer ce mot de passe dès la première connexion !"
 fi
 
+# Création du répertoire .ssh et copie des clés autorisées pour l'utilisateur admin
+# (sans cela, AllowUsers bloque l'accès même avec une clé valide)
+ADMIN_SSH_DIR="/home/$ADMIN_USER/.ssh"
+mkdir -p "$ADMIN_SSH_DIR"
+# Copier les clés autorisées de l'utilisateur courant (ubuntu, root, ou autre)
+for SRC_AUTH in /home/ubuntu/.ssh/authorized_keys /root/.ssh/authorized_keys; do
+    if [[ -s "$SRC_AUTH" ]]; then
+        cat "$SRC_AUTH" >> "$ADMIN_SSH_DIR/authorized_keys"
+        log "Clés copiées depuis $SRC_AUTH vers $ADMIN_SSH_DIR/authorized_keys"
+    fi
+done
+# Dédoublonner et sécuriser
+sort -u "$ADMIN_SSH_DIR/authorized_keys" -o "$ADMIN_SSH_DIR/authorized_keys" 2>/dev/null || true
+chmod 700 "$ADMIN_SSH_DIR"
+chmod 600 "$ADMIN_SSH_DIR/authorized_keys"
+chown -R "$ADMIN_USER:$ADMIN_USER" "$ADMIN_SSH_DIR"
+[[ -s "$ADMIN_SSH_DIR/authorized_keys" ]] && log "✅ Clés SSH installées pour $ADMIN_USER" || warning "⚠️  Aucune clé SSH trouvée — l'accès SSH par clé devra être configuré manuellement"
+
 # Configuration SSH sécurisé (garde les mots de passe pour l'instant)
 log "Configuration SSH sécurisé sur le port $SSH_PORT..."
 cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup
@@ -870,7 +914,8 @@ Port $SSH_PORT
 PermitRootLogin no
 PubkeyAuthentication yes
 AuthorizedKeysFile .ssh/authorized_keys
-PasswordAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
 MaxAuthTries 3
 AllowUsers $ADMIN_USER
 ClientAliveInterval 300
@@ -885,7 +930,6 @@ HostKey /etc/ssh/ssh_host_ed25519_key
 # Authentification
 LoginGraceTime 60
 StrictModes yes
-RSAAuthentication yes
 
 # Sécurité supplémentaire
 X11Forwarding no
@@ -956,6 +1000,9 @@ fi
 # Configuration Fail2ban
 log "Configuration de Fail2ban..."
 cat > /etc/fail2ban/jail.local << EOF
+[DEFAULT]
+ignoreip = 127.0.0.1/8 ::1${ADMIN_IGNOREIP:+ $ADMIN_IGNOREIP}
+
 [sshd]
 enabled = true
 port = $SSH_PORT
@@ -980,29 +1027,60 @@ log "Configuration de la sauvegarde automatique..."
 mkdir -p /opt/backup
 chown $ADMIN_USER:$ADMIN_USER /opt/backup
 
-cat > /opt/backup/backup-odoo.sh << EOF
+cat > /opt/backup/backup-odoo.sh << 'EOFBACKUP'
 #!/bin/bash
-DATE=\$(date +%Y%m%d_%H%M%S)
+DATE=$(date +%Y%m%d_%H%M%S)
 BACKUP_DIR="/opt/backup"
+PGPORT=$PGPORT_CONF
+PGUSER=$PGUSER_CONF
 
-# Sauvegarde base de données
-PGPASSWORD='$POSTGRES_USER_PASS' pg_dump -h localhost -p $POSTGRES_PORT -U $ODOO_USER postgres > \$BACKUP_DIR/odoo_db_\${DATE}.sql
+# Mot de passe PostgreSQL via .pgpass (jamais en clair dans le script)
+export PGPASSFILE=/root/.pgpass
+
+# Lister les bases Odoo réelles (exclure postgres, template0, template1)
+ODOO_DBS=$(psql -h localhost -p $PGPORT -U $PGUSER -At \
+    -c "SELECT datname FROM pg_database WHERE datistemplate=false AND datname NOT IN ('postgres','template0','template1');" \
+    2>/dev/null)
+
+if [[ -z "$ODOO_DBS" ]]; then
+    echo "ERREUR: Aucune base Odoo trouvée — sauvegarde annulée ($DATE)" >&2
+    exit 1
+fi
+
+# Sauvegarde base(s) de données au format custom (-Fc, restaurable via pg_restore)
+for DB in $ODOO_DBS; do
+    OUTFILE="$BACKUP_DIR/odoo_db_${DB}_${DATE}.dump"
+    pg_dump -h localhost -p $PGPORT -U $PGUSER -Fc "$DB" > "$OUTFILE"
+    chmod 600 "$OUTFILE"
+    echo "Base sauvegardée : $DB ($(du -sh $OUTFILE | cut -f1))"
+done
 
 # Sauvegarde filestore Odoo sécurisé
-tar -czf \$BACKUP_DIR/odoo_filestore_\${DATE}.tar.gz /opt/odoo-secure/filestore/ 2>/dev/null
+tar -czf $BACKUP_DIR/odoo_filestore_${DATE}.tar.gz /opt/odoo-secure/filestore/ 2>/dev/null
+chmod 600 $BACKUP_DIR/odoo_filestore_${DATE}.tar.gz
 
 # Sauvegarde addons personnalisés
-tar -czf \$BACKUP_DIR/odoo_addons_custom_\${DATE}.tar.gz /opt/odoo-secure/addons-custom/ 2>/dev/null
+tar -czf $BACKUP_DIR/odoo_addons_custom_${DATE}.tar.gz /opt/odoo-secure/addons-custom/ 2>/dev/null
+chmod 600 $BACKUP_DIR/odoo_addons_custom_${DATE}.tar.gz
 
 # Sauvegarde configurations sécurisées
-tar -czf \$BACKUP_DIR/configs_\${DATE}.tar.gz /opt/odoo-secure/config/ /etc/nginx/sites-available/ /etc/ssh/sshd_config /etc/fail2ban/jail.local 2>/dev/null
+tar -czf $BACKUP_DIR/configs_${DATE}.tar.gz /opt/odoo-secure/config/ /etc/nginx/sites-available/ /etc/ssh/sshd_config /etc/fail2ban/jail.local 2>/dev/null
+chmod 600 $BACKUP_DIR/configs_${DATE}.tar.gz
 
 # Nettoyage (garde 7 jours)
-find \$BACKUP_DIR -name "*.sql" -mtime +7 -delete
-find \$BACKUP_DIR -name "*.tar.gz" -mtime +7 -delete
+find $BACKUP_DIR -name "*.dump" -mtime +7 -delete
+find $BACKUP_DIR -name "*.tar.gz" -mtime +7 -delete
 
-echo "Sauvegarde terminée: \${DATE}"
-EOF
+echo "Sauvegarde terminée: ${DATE}"
+EOFBACKUP
+
+# Remplacer les variables de connexion dans le script de backup
+sed -i "s/\$PGPORT_CONF/$POSTGRES_PORT/g" /opt/backup/backup-odoo.sh
+sed -i "s/\$PGUSER_CONF/$ODOO_USER/g" /opt/backup/backup-odoo.sh
+
+# Créer le fichier .pgpass (mot de passe PostgreSQL, jamais dans le script de backup)
+echo "localhost:$POSTGRES_PORT:*:$ODOO_USER:$POSTGRES_USER_PASS" > /root/.pgpass
+chmod 600 /root/.pgpass
 
 chmod +x /opt/backup/backup-odoo.sh
 
@@ -1409,14 +1487,9 @@ sed -i "s/POSTGRES_ADMIN_PASS_VALUE/$POSTGRES_ADMIN_PASS/g" /opt/backup/CAHIER-D
 sed -i "s/POSTGRES_USER_PASS_VALUE/$POSTGRES_USER_PASS/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
 sed -i "s/ODOO_MASTER_PASS_VALUE/$ODOO_MASTER_PASS/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
 
-# Status SSH
-if [ "$SSH_PASSWORD_DISABLED" = true ]; then
-    sed -i "s/SSH_STATUS_VALUE/✅ Sécurisé (Mots de passe désactivés)/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
-    sed -i "s/SSH_PASSWORD_STATUS_VALUE/no/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
-else
-    sed -i "s/SSH_STATUS_VALUE/⚠️ Configuration manuelle requise/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
-    sed -i "s/SSH_PASSWORD_STATUS_VALUE/yes (temporaire)/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
-fi
+# Status SSH (toujours sécurisé — PasswordAuthentication no posé directement)
+sed -i "s/SSH_STATUS_VALUE/✅ Sécurisé (clés uniquement)/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
+sed -i "s/SSH_PASSWORD_STATUS_VALUE/no/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$(date +%Y%m%d_%H%M%S).md
 
 # Status services
 SERVICES_STATUS=""
@@ -1440,33 +1513,15 @@ sed -i "s/DISK_USAGE_VALUE/$DISK_USAGE/g" /opt/backup/CAHIER-DES-CHARGES-FINAL-$
 
 log "Documentation locale sauvegardée dans /opt/backup/"
 
-# NOUVELLE FONCTIONNALITÉ : Vérification et désactivation automatique des mots de passe SSH
-log "Vérification des clés SSH et sécurisation automatique..."
-
-# Vérifier si des clés SSH sont configurées pour l'utilisateur admin
-if [ -f "/home/$ADMIN_USER/.ssh/authorized_keys" ] && [ -s "/home/$ADMIN_USER/.ssh/authorized_keys" ]; then
-    log "🔑 Clés SSH détectées pour $ADMIN_USER"
-    
-    # Test rapide de connectivité avec clés
-    if sudo -u $ADMIN_USER ssh -o StrictHostKeyChecking=no -o PasswordAuthentication=no -p $SSH_PORT $ADMIN_USER@localhost echo "test" 2>/dev/null; then
-        log "✅ Clés SSH fonctionnelles - Désactivation automatique des mots de passe..."
-        
-        # Désactivation des mots de passe SSH
-        sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
-        systemctl restart ssh
-        
-        log "🔒 Mots de passe SSH désactivés automatiquement - Sécurité maximale activée"
-        SSH_PASSWORD_DISABLED=true
-    else
-        log "⚠️ Clés SSH présentes mais non fonctionnelles - Conservation des mots de passe"
-        SSH_PASSWORD_DISABLED=false
-    fi
-else
-    log "⚠️ Aucune clé SSH détectée - Conservation des mots de passe pour configuration manuelle"
-    SSH_PASSWORD_DISABLED=false
-fi
+# Restriction des permissions sur les fichiers de secrets (mots de passe en clair)
+chmod 600 /opt/backup/CAHIER-DES-CHARGES-FINAL-*.md 2>/dev/null || true
+chmod 600 /opt/backup/GUIDE-INSTALLATION-SystemERP.md 2>/dev/null || true
+chown root:root /opt/backup/CAHIER-DES-CHARGES-FINAL-*.md 2>/dev/null || true
+chown root:root /opt/backup/GUIDE-INSTALLATION-SystemERP.md 2>/dev/null || true
+log "✅ Fichiers de secrets restreints en mode 600 (root uniquement)"
 
 log "✅ Sécurisation finale terminée"
+SSH_PASSWORD_DISABLED=true
 
 #################################################################################
 # VÉRIFICATIONS FINALES ET RAPPORT
@@ -1557,7 +1612,7 @@ echo ""
 echo "📝 ÉTAPES SUIVANTES:"
 echo "   1. Testez l'accès Odoo: http://$CURRENT_IP"
 echo "   2. Testez l'accès Webmin: https://$CURRENT_IP:$WEBMIN_PORT"
-echo "   3. Téléchargez la documentation: http://$CURRENT_IP/guide-installation.md"
+echo "   3. Documentation sur le serveur : /opt/backup/CAHIER-DES-CHARGES-FINAL-*.md"
 if [ "$SSH_PASSWORD_DISABLED" = true ]; then
     echo "   4. ✅ SSH sécurisé automatiquement (clés uniquement)"
     echo "   5. Placez vos addons dans /opt/odoo-secure/addons-custom/"
